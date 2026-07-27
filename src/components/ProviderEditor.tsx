@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowLeft,
   Copy,
+  Download,
   Eye,
   EyeOff,
   FlaskConical,
@@ -22,6 +23,7 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   onTest: () => void;
+  onFetchModels: () => void;
   onBack: () => void;
 }
 
@@ -32,10 +34,10 @@ const protocols: Array<{ value: ApiProtocol; label: string }> = [
   { value: "google-generative-ai", label: "Google Generative AI" },
 ];
 
-function newModel(index: number): ModelProfile {
+function newModel(): ModelProfile {
   return {
-    id: `model-${index}`,
-    name: `模型 ${index}`,
+    id: "",
+    name: "",
     reasoning: false,
     input: ["text"],
     contextWindow: 128000,
@@ -53,6 +55,7 @@ export function ProviderEditor({
   onDelete,
   onDuplicate,
   onTest,
+  onFetchModels,
   onBack,
 }: Props) {
   const [showKey, setShowKey] = useState(false);
@@ -194,18 +197,29 @@ export function ProviderEditor({
                 <h2>模型列表</h2>
                 <span className="section-count">{profile.models.length}</span>
               </div>
-              <button
-                className="secondary-button"
-                onClick={() =>
-                  onChange({
-                    ...profile,
-                    models: [...profile.models, newModel(profile.models.length + 1)],
-                  })
-                }
-              >
-                <Plus size={16} />
-                添加模型
-              </button>
+              <div className="panel-actions">
+                <button
+                  className="secondary-button"
+                  onClick={onFetchModels}
+                  disabled={busy || !profile.baseUrl.trim() || !profile.apiKey.trim()}
+                  title="通过供应商的 OpenAI 兼容模型接口拉取并导入"
+                >
+                  {busy ? <RefreshCw className="spin" size={16} /> : <Download size={16} />}
+                  拉取模型
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    onChange({
+                      ...profile,
+                      models: [...profile.models, newModel()],
+                    })
+                  }
+                >
+                  <Plus size={16} />
+                  添加模型
+                </button>
+              </div>
             </div>
 
             {profile.models.length === 0 ? (

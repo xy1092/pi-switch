@@ -2,7 +2,9 @@ mod models;
 mod pi_config;
 mod store;
 
-use models::{AppStatus, BackupInfo, ProviderProfile, SyncResult, TestResult, WorkspaceSettings};
+use models::{
+    AppStatus, BackupInfo, FetchedModel, ProviderProfile, SyncResult, TestResult, WorkspaceSettings,
+};
 
 #[tauri::command]
 fn get_app_status() -> Result<AppStatus, String> {
@@ -40,6 +42,14 @@ async fn test_profile(profile: ProviderProfile) -> Result<TestResult, String> {
 }
 
 #[tauri::command]
+async fn fetch_provider_models(
+    base_url: String,
+    api_key: String,
+) -> Result<Vec<FetchedModel>, String> {
+    pi_config::fetch_provider_models(&base_url, &api_key).await
+}
+
+#[tauri::command]
 fn import_live_config() -> Result<Vec<ProviderProfile>, String> {
     pi_config::import_live()
 }
@@ -66,6 +76,7 @@ pub fn run() {
             get_workspace_settings,
             sync_configuration,
             test_profile,
+            fetch_provider_models,
             import_live_config,
             list_backups,
             restore_backup

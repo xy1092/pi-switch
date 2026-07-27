@@ -65,6 +65,12 @@ export interface TestResult {
   durationMs: number;
 }
 
+export interface FetchedModel {
+  id: string;
+  name: string;
+  ownedBy: string | null;
+}
+
 export interface BackupInfo {
   id: string;
   path: string;

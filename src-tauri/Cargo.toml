@@ -1,6 +1,6 @@
 [package]
 name = "pi-switch"
-version = "0.2.0"
+version = "0.2.1"
 description = "Desktop provider and model configuration manager for Pi Coding Agent"
 authors = ["Pi Switch contributors"]
 edition = "2021"
@@ -22,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+reqwest = { version = "0.13", features = ["json"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "3"
 tokio = { version = "1", features = ["process", "time"] }

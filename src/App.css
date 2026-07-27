@@ -416,6 +416,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   margin-bottom: 16px;
 }
 .panel-heading > div { display: flex; align-items: center; gap: 9px; }
+.panel-heading .panel-actions { display: flex; gap: 8px; }
 .panel-heading h2 { margin: 0; font-size: 14px; font-weight: 650; }
 .panel-hint { margin: -6px 0 14px; color: var(--text-faint); font-size: 12px; }
 .section-count {
@@ -638,5 +639,7 @@ input:disabled { background: var(--surface-soft); color: var(--text-faint); }
   .span-two { grid-column: auto; }
   .provider-card { grid-template-columns: 40px minmax(0, 1fr); }
   .card-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .panel-heading { align-items: flex-start; flex-direction: column; }
+  .panel-heading .panel-actions { width: 100%; }
+  .panel-heading .panel-actions .secondary-button { flex: 1; }
 }
-

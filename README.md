@@ -10,6 +10,7 @@ Pi Switch 是给 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的�
 - 全局默认供应商、默认模型、默认思考强度
 - 卡片上一键「设为默认」，立即写入 Pi 配置
 - 支持 OpenAI Responses、OpenAI Chat Completions、Anthropic Messages、Google Generative AI 四种接口协议
+- 通过 OpenAI 兼容的 `/v1/models` 接口拉取并批量导入模型，支持 CPA/CLIProxyAPI
 - 通过本机已安装的 `pi` 可执行文件做连通性测试
 - 从现有 Pi 配置导入
 - 原子写入 JSON，每次应用前自动备份，可一键恢复
@@ -73,7 +74,7 @@ makepkg --clean --force
 安装：
 
 ```bash
-sudo pacman -U ./pi-switch-0.2.0-1-x86_64.pkg.tar.zst
+sudo pacman -U ./pi-switch-0.2.1-1-x86_64.pkg.tar.zst
 ```
 
 ### 更新已安装的版本

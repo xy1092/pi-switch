@@ -10,13 +10,16 @@ use tempfile::TempDir;
 use tokio::process::Command;
 
 use crate::models::{
-    AppStatus, BackupInfo, ModelProfile, ProviderProfile, SyncResult, TestResult, WorkspaceSettings,
+    AppStatus, BackupInfo, FetchedModel, ModelProfile, ProviderProfile, SyncResult, TestResult,
+    WorkspaceSettings,
 };
 use crate::store::{
     data_dir, home_dir, list_profiles, now_ms, save_profile, save_workspace_settings,
 };
 
 const CONFIG_FILES: [&str; 3] = ["models.json", "auth.json", "settings.json"];
+const MODEL_FETCH_TIMEOUT: Duration = Duration::from_secs(15);
+const ERROR_BODY_LIMIT: usize = 512;
 
 fn agent_dir() -> Result<PathBuf, String> {
     Ok(home_dir()?.join(".pi").join("agent"))
@@ -457,6 +460,161 @@ pub fn import_live() -> Result<Vec<ProviderProfile>, String> {
     list_profiles()
 }
 
+fn ends_with_version_segment(url: &str) -> bool {
+    let last = url.rsplit('/').next().unwrap_or_default();
+    last.strip_prefix('v').is_some_and(|digits| {
+        !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+    })
+}
+
+fn model_url_candidates(base_url: &str) -> Result<Vec<String>, String> {
+    let base = base_url.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return Err("请先填写请求地址。".to_string());
+    }
+    if !(base.starts_with("http://") || base.starts_with("https://")) {
+        return Err("请求地址必须以 http:// 或 https:// 开头。".to_string());
+    }
+
+    let mut candidates = Vec::new();
+    if ends_with_version_segment(base) {
+        candidates.push(format!("{base}/models"));
+        if !base.ends_with("/v1") {
+            candidates.push(format!("{base}/v1/models"));
+        }
+    } else if let Some(index) = base.find("/v1/") {
+        candidates.push(format!("{}/v1/models", &base[..index]));
+    } else if base.ends_with("/models") {
+        candidates.push(base.to_string());
+    } else {
+        candidates.push(format!("{base}/v1/models"));
+        candidates.push(format!("{base}/models"));
+    }
+    candidates.dedup();
+    Ok(candidates)
+}
+
+fn truncate_error_body(body: &str) -> String {
+    let mut chars = body.chars();
+    let truncated: String = chars.by_ref().take(ERROR_BODY_LIMIT).collect();
+    if chars.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+fn parse_fetched_models(value: Value) -> Result<Vec<FetchedModel>, String> {
+    let entries = value
+        .get("data")
+        .and_then(Value::as_array)
+        .or_else(|| value.get("models").and_then(Value::as_array))
+        .or_else(|| value.as_array())
+        .ok_or_else(|| "模型接口返回格式不受支持，缺少 data/models 数组。".to_string())?;
+
+    let mut models = entries
+        .iter()
+        .filter_map(|entry| {
+            let id = entry
+                .get("id")
+                .or_else(|| entry.get("name"))
+                .and_then(Value::as_str)?
+                .trim();
+            if id.is_empty() {
+                return None;
+            }
+            let name = entry
+                .get("display_name")
+                .or_else(|| entry.get("displayName"))
+                .or_else(|| entry.get("name"))
+                .and_then(Value::as_str)
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or(id);
+            let owned_by = entry
+                .get("owned_by")
+                .or_else(|| entry.get("ownedBy"))
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            Some(FetchedModel {
+                id: id.to_string(),
+                name: name.to_string(),
+                owned_by,
+            })
+        })
+        .collect::<Vec<_>>();
+    models.sort_by(|left, right| left.id.cmp(&right.id));
+    models.dedup_by(|left, right| left.id == right.id);
+    if models.is_empty() {
+        return Err("模型接口返回成功，但没有可导入的模型。".to_string());
+    }
+    Ok(models)
+}
+
+pub async fn fetch_provider_models(
+    base_url: &str,
+    api_key: &str,
+) -> Result<Vec<FetchedModel>, String> {
+    if api_key.trim().is_empty() {
+        return Err("请先填写 API Key。".to_string());
+    }
+    let candidates = model_url_candidates(base_url)?;
+    let client = reqwest::Client::builder()
+        .timeout(MODEL_FETCH_TIMEOUT)
+        .user_agent(concat!("pi-switch/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|error| format!("无法创建网络客户端：{error}"))?;
+    let mut last_not_found = None;
+
+    for url in candidates {
+        let response = client
+            .get(&url)
+            .bearer_auth(api_key.trim())
+            .send()
+            .await
+            .map_err(|error| format!("请求模型列表失败：{error}"))?;
+        let status = response.status();
+        if status.is_success() {
+            let value = response
+                .json::<Value>()
+                .await
+                .map_err(|error| format!("模型列表解析失败：{error}"))?;
+            return parse_fetched_models(value);
+        }
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 404 || status.as_u16() == 405 {
+            last_not_found = Some(format!("{url} 返回 HTTP {status}"));
+            continue;
+        }
+        return Err(format!(
+            "模型接口返回 HTTP {status}：{}",
+            truncate_error_body(&body)
+        ));
+    }
+
+    Err(format!(
+        "没有找到模型列表接口。{}",
+        last_not_found
+            .map(|error| format!("最后一次尝试：{error}"))
+            .unwrap_or_default()
+    ))
+}
+
+fn is_placeholder_model_id(id: &str) -> bool {
+    let id = id.trim().to_ascii_lowercase();
+    id == "model-id"
+        || id == "model"
+        || id.strip_prefix("model-").is_some_and(|suffix| {
+            !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
+        })
+}
+
+fn is_text_test_model(id: &str) -> bool {
+    let id = id.to_ascii_lowercase();
+    !["image", "audio", "realtime", "embedding", "tts", "transcri"]
+        .iter()
+        .any(|marker| id.contains(marker))
+}
+
 async fn run_pi(
     profile: &ProviderProfile,
     model_id: &str,
@@ -516,8 +674,9 @@ pub async fn test_profile(profile: ProviderProfile) -> Result<TestResult, String
     let temp = TempDir::new().map_err(|error| error.to_string())?;
     let test_model = profile
         .models
-        .first()
-        .ok_or_else(|| "Add at least one model.".to_string())?;
+        .iter()
+        .find(|model| !is_placeholder_model_id(&model.id) && is_text_test_model(&model.id))
+        .ok_or_else(|| "没有可用于测试的真实文本模型，请先点击“拉取模型”。".to_string())?;
     let workspace = WorkspaceSettings {
         default_provider: profile.id.clone(),
         default_model: test_model.id.clone(),
@@ -619,5 +778,47 @@ mod tests {
         assert_eq!(auth["second-provider"]["key"], "second-secret");
         assert_eq!(settings["defaultProvider"], "test-provider");
         assert_eq!(settings["enabledModels"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn model_url_candidates_match_openai_compatible_endpoints() {
+        assert_eq!(
+            model_url_candidates("http://127.0.0.1:8317/v1").unwrap(),
+            vec!["http://127.0.0.1:8317/v1/models"]
+        );
+        assert_eq!(
+            model_url_candidates("https://api.example.com").unwrap(),
+            vec![
+                "https://api.example.com/v1/models",
+                "https://api.example.com/models"
+            ]
+        );
+        assert_eq!(
+            model_url_candidates("https://api.example.com/v1/responses").unwrap(),
+            vec!["https://api.example.com/v1/models"]
+        );
+    }
+
+    #[test]
+    fn parses_and_sorts_cpa_model_response() {
+        let models = parse_fetched_models(json!({
+            "object": "list",
+            "data": [
+                {"id": "gpt-z", "owned_by": "openai"},
+                {"id": "claude-a", "owned_by": "anthropic"}
+            ]
+        }))
+        .unwrap();
+        assert_eq!(models[0].id, "claude-a");
+        assert_eq!(models[0].name, "claude-a");
+        assert_eq!(models[1].owned_by.as_deref(), Some("openai"));
+    }
+
+    #[test]
+    fn rejects_placeholder_models_for_connection_tests() {
+        assert!(is_placeholder_model_id("model-id"));
+        assert!(is_placeholder_model_id("model-12"));
+        assert!(!is_placeholder_model_id("gpt-5.6-sol"));
+        assert!(!is_text_test_model("gpt-image-2"));
     }
 }

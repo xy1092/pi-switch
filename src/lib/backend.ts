@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppStatus,
   BackupInfo,
+  FetchedModel,
   ProviderProfile,
   SyncResult,
   TestResult,
@@ -145,6 +146,27 @@ export async function testProfile(
   if (isTauri) return invoke("test_profile", { profile });
   await new Promise((resolve) => window.setTimeout(resolve, 700));
   return { ok: true, message: "OK", durationMs: 684 };
+}
+
+export async function fetchProviderModels(
+  baseUrl: string,
+  apiKey: string,
+): Promise<FetchedModel[]> {
+  if (isTauri) return invoke("fetch_provider_models", { baseUrl, apiKey });
+  const base = baseUrl.trim().replace(/\/$/, "");
+  const url = /\/v\d+$/.test(base) ? `${base}/models` : `${base}/v1/models`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey.trim()}` },
+  });
+  if (!response.ok) throw new Error(`模型接口返回 HTTP ${response.status}`);
+  const body = (await response.json()) as {
+    data?: Array<{ id: string; name?: string; owned_by?: string }>;
+  };
+  return (body.data ?? []).map((model) => ({
+    id: model.id,
+    name: model.name || model.id,
+    ownedBy: model.owned_by ?? null,
+  }));
 }
 
 export async function importLiveConfig(): Promise<ProviderProfile[]> {

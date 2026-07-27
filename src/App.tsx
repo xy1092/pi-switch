@@ -16,6 +16,7 @@ import { ProviderEditor } from "./components/ProviderEditor";
 import { ProviderList } from "./components/ProviderList";
 import {
   deleteProfile,
+  fetchProviderModels,
   getAppStatus,
   getWorkspaceSettings,
   importLiveConfig,
@@ -71,16 +72,7 @@ function createProvider(existing: ProviderProfile[], source?: ProviderProfile): 
     apiKey: source?.apiKey ?? "",
     authHeader: source?.authHeader ?? false,
     enabled: source?.enabled ?? true,
-    models: source?.models.map((model) => ({ ...model, input: [...model.input] })) ?? [
-      {
-        id: "model-id",
-        name: "模型",
-        reasoning: true,
-        input: ["text", "image"],
-        contextWindow: 128000,
-        maxTokens: 16384,
-      },
-    ],
+    models: source?.models.map((model) => ({ ...model, input: [...model.input] })) ?? [],
     createdAt: 0,
     updatedAt: 0,
   };
@@ -223,6 +215,37 @@ function App() {
     }
   };
 
+  const handleFetchModels = async () => {
+    if (!draft) return;
+    setBusy(true);
+    try {
+      const fetched = await fetchProviderModels(draft.baseUrl, draft.apiKey);
+      const existing = new Map(draft.models.map((model) => [model.id, model]));
+      const models = fetched.map((model) => {
+        const current = existing.get(model.id);
+        if (current) return { ...current, input: [...current.input] };
+        return {
+          id: model.id,
+          name: model.name || model.id,
+          reasoning: /^(claude|codex|gpt-5|gemini|o[134](?:-|$))/i.test(model.id),
+          input: ["text"],
+          contextWindow: 128000,
+          maxTokens: 16384,
+        };
+      });
+      setDraft({ ...draft, models });
+      setSaved(false);
+      setNotice({
+        kind: "success",
+        text: `已从「${draft.name}」拉取并导入 ${models.length} 个模型`,
+      });
+    } catch (error) {
+      setNotice({ kind: "error", text: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSync = async (override?: WorkspaceSettings) => {
     setBusy(true);
     try {
@@ -313,6 +336,7 @@ function App() {
           onDelete={() => handleDelete(draft.id)}
           onDuplicate={() => openNew(draft)}
           onTest={handleTest}
+          onFetchModels={handleFetchModels}
           onBack={closeEditor}
         />
         {noticeBanner && <div className="page">{noticeBanner}</div>}
