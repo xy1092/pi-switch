@@ -1,22 +1,19 @@
 pkgname=pi-switch
 pkgver=0.2.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Desktop provider and model configuration manager for Pi Coding Agent"
 arch=('x86_64')
 url="https://github.com/badlogic/pi-mono"
 license=('MIT')
 depends=('gtk3' 'webkit2gtk-4.1')
-source=(
-  "pi-switch::file://${startdir}/../../src-tauri/target/release/pi-switch"
-  "pi-switch.desktop"
-  "pi-switch.png::file://${startdir}/../../src-tauri/icons/icon.png"
-)
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+source=("pi-switch.desktop")
+sha256sums=('SKIP')
 
 package() {
-  install -Dm755 "${srcdir}/pi-switch" "${pkgdir}/usr/bin/pi-switch"
+  install -Dm755 "${startdir}/../../src-tauri/target/release/pi-switch" \
+    "${pkgdir}/usr/bin/pi-switch"
   install -Dm644 "${srcdir}/pi-switch.desktop" \
     "${pkgdir}/usr/share/applications/pi-switch.desktop"
-  install -Dm644 "${srcdir}/pi-switch.png" \
+  install -Dm644 "${startdir}/../../src-tauri/icons/icon.png" \
     "${pkgdir}/usr/share/icons/hicolor/512x512/apps/pi-switch.png"
 }

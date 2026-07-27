@@ -74,7 +74,7 @@ makepkg --clean --force
 安装：
 
 ```bash
-sudo pacman -U ./pi-switch-0.2.1-1-x86_64.pkg.tar.zst
+sudo pacman -U ./pi-switch-0.2.1-2-x86_64.pkg.tar.zst
 ```
 
 ### 更新已安装的版本
