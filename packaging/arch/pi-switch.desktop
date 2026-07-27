@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Pi Switch
+Comment=Configure providers and models for Pi Coding Agent
+Exec=pi-switch
+Icon=pi-switch
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=pi-switch
