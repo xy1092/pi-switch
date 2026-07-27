@@ -2,16 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArchiveRestore,
+  Boxes,
   Check,
   ChevronDown,
   Database,
+  Download,
+  Plus,
   RefreshCw,
   Save,
-  Server,
 } from "lucide-react";
 import "./App.css";
 import { ProviderEditor } from "./components/ProviderEditor";
-import { ProviderSidebar } from "./components/ProviderSidebar";
+import { ProviderList } from "./components/ProviderList";
 import {
   deleteProfile,
   getAppStatus,
@@ -32,6 +34,18 @@ import type {
   WorkspaceSettings,
 } from "./types";
 
+type View = "providers" | "backups";
+
+const thinkingLabels: Record<ThinkingLevel, string> = {
+  off: "关闭",
+  minimal: "极简",
+  low: "低",
+  medium: "中",
+  high: "高",
+  xhigh: "很高",
+  max: "最高",
+};
+
 const emptyStatus: AppStatus = {
   piVersion: null,
   piAvailable: false,
@@ -51,7 +65,7 @@ function createProvider(existing: ProviderProfile[], source?: ProviderProfile): 
   }
   return {
     id,
-    name: source ? `${source.name} Copy` : "My Provider",
+    name: source ? `${source.name} 副本` : "新供应商",
     baseUrl: source?.baseUrl ?? "https://api.example.com/v1",
     api: source?.api ?? "openai-responses",
     apiKey: source?.apiKey ?? "",
@@ -60,7 +74,7 @@ function createProvider(existing: ProviderProfile[], source?: ProviderProfile): 
     models: source?.models.map((model) => ({ ...model, input: [...model.input] })) ?? [
       {
         id: "model-id",
-        name: "Model",
+        name: "模型",
         reasoning: true,
         input: ["text", "image"],
         contextWindow: 128000,
@@ -81,11 +95,7 @@ function normalizeWorkspace(
   if (!selected) return workspace;
   const model =
     selected.models.find((entry) => entry.id === workspace.defaultModel) ?? selected.models[0];
-  return {
-    ...workspace,
-    defaultProvider: selected.id,
-    defaultModel: model.id,
-  };
+  return { ...workspace, defaultProvider: selected.id, defaultModel: model.id };
 }
 
 function App() {
@@ -96,10 +106,11 @@ function App() {
     defaultThinking: "off",
   });
   const [draft, setDraft] = useState<ProviderProfile | null>(null);
+  const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [status, setStatus] = useState<AppStatus>(emptyStatus);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
-  const [view, setView] = useState<"providers" | "backups">("providers");
+  const [view, setView] = useState<View>("providers");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(true);
@@ -112,6 +123,7 @@ function App() {
   const defaultProvider = enabledProfiles.find(
     (profile) => profile.id === workspace.defaultProvider,
   );
+  const isNewDraft = Boolean(draft && !profiles.some((profile) => profile.id === draft.id));
 
   const refresh = async () => {
     const [loadedProfiles, loadedWorkspace, loadedStatus, loadedBackups] = await Promise.all([
@@ -120,40 +132,39 @@ function App() {
       getAppStatus(),
       listBackups(),
     ]);
-    const normalized = normalizeWorkspace(loadedProfiles, loadedWorkspace);
     setProfiles(loadedProfiles);
-    setWorkspace(normalized);
+    setWorkspace(normalizeWorkspace(loadedProfiles, loadedWorkspace));
     setStatus(loadedStatus);
     setBackups(loadedBackups);
-    if (loadedProfiles.length > 0) {
-      const selected = loadedProfiles.find((profile) => profile.id === selectedId) ?? loadedProfiles[0];
-      setSelectedId(selected.id);
-      setDraft(structuredClone(selected));
-    } else {
-      const created = createProvider([]);
-      setSelectedId(created.id);
-      setDraft(created);
-      setSaved(false);
-    }
   };
 
   useEffect(() => {
-    refresh().catch((error: unknown) =>
-      setNotice({ kind: "error", text: String(error) }),
-    );
+    refresh().catch((error: unknown) => setNotice({ kind: "error", text: String(error) }));
   }, []);
 
-  const selectProfile = (id: string) => {
+  const openEditor = (id: string) => {
     const profile = profiles.find((entry) => entry.id === id);
     if (!profile) return;
     setSelectedId(id);
     setDraft(structuredClone(profile));
     setSaved(true);
+    setEditing(true);
   };
 
-  const changeDraft = (profile: ProviderProfile) => {
-    setDraft(profile);
+  const openNew = (source?: ProviderProfile) => {
+    const created = createProvider(profiles, source);
+    setSelectedId(created.id);
+    setDraft(created);
     setSaved(false);
+    setEditing(true);
+    setView("providers");
+  };
+
+  const closeEditor = () => {
+    if (!saved && !window.confirm("有未保存的修改，确定要离开吗？")) return;
+    setEditing(false);
+    setDraft(null);
+    setSaved(true);
   };
 
   const handleSave = async () => {
@@ -167,7 +178,7 @@ function App() {
       setDraft(structuredClone(savedProfile));
       setWorkspace((current) => normalizeWorkspace(loaded, current));
       setSaved(true);
-      setNotice({ kind: "success", text: `Saved ${savedProfile.name}` });
+      setNotice({ kind: "success", text: `已保存「${savedProfile.name}」` });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
     } finally {
@@ -175,14 +186,20 @@ function App() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!draft || !profiles.some((profile) => profile.id === selectedId)) return;
-    if (!window.confirm(`Delete ${draft.name}?`)) return;
+  const handleDelete = async (id: string) => {
+    const target = profiles.find((profile) => profile.id === id);
+    if (!target) return;
+    if (!window.confirm(`确定要删除「${target.name}」吗？`)) return;
     setBusy(true);
     try {
-      await deleteProfile(selectedId);
+      await deleteProfile(id);
       await refresh();
-      setNotice({ kind: "success", text: "Provider deleted" });
+      if (selectedId === id) {
+        setEditing(false);
+        setDraft(null);
+        setSaved(true);
+      }
+      setNotice({ kind: "success", text: "供应商已删除" });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
     } finally {
@@ -197,7 +214,7 @@ function App() {
       const result = await testProfile(draft);
       setNotice({
         kind: result.ok ? "success" : "error",
-        text: `${result.message} · ${result.durationMs} ms`,
+        text: `${result.ok ? "连接成功" : "连接失败"}：${result.message} · 耗时 ${result.durationMs} ms`,
       });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
@@ -206,7 +223,7 @@ function App() {
     }
   };
 
-  const handleSync = async () => {
+  const handleSync = async (override?: WorkspaceSettings) => {
     setBusy(true);
     try {
       if (draft && !saved) {
@@ -217,13 +234,13 @@ function App() {
       }
       const currentProfiles = await listProfiles();
       setProfiles(currentProfiles);
-      const normalized = normalizeWorkspace(currentProfiles, workspace);
+      const normalized = normalizeWorkspace(currentProfiles, override ?? workspace);
       const result = await syncConfiguration(normalized);
       setWorkspace(normalized);
       setBackups(await listBackups());
       setNotice({
         kind: "success",
-        text: `${result.providerCount} providers · ${result.modelCount} models · ${result.modelReference}`,
+        text: `已写入 Pi：${result.providerCount} 个供应商 · ${result.modelCount} 个模型 · 默认 ${result.modelReference}`,
       });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
@@ -232,19 +249,25 @@ function App() {
     }
   };
 
+  const handleUse = async (id: string) => {
+    const provider = enabledProfiles.find((profile) => profile.id === id);
+    if (!provider) return;
+    const next: WorkspaceSettings = {
+      ...workspace,
+      defaultProvider: id,
+      defaultModel: provider.models[0]?.id ?? "",
+    };
+    setWorkspace(next);
+    await handleSync(next);
+  };
+
   const handleImport = async () => {
     setBusy(true);
     try {
       const imported = await importLiveConfig();
       setProfiles(imported);
-      const importedWorkspace = normalizeWorkspace(imported, await getWorkspaceSettings());
-      setWorkspace(importedWorkspace);
-      if (imported.length > 0) {
-        setSelectedId(imported[0].id);
-        setDraft(structuredClone(imported[0]));
-        setSaved(true);
-      }
-      setNotice({ kind: "success", text: `Imported ${imported.length} providers` });
+      setWorkspace(normalizeWorkspace(imported, await getWorkspaceSettings()));
+      setNotice({ kind: "success", text: `已导入 ${imported.length} 个供应商` });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
     } finally {
@@ -253,11 +276,12 @@ function App() {
   };
 
   const handleRestore = async (id: string) => {
-    if (!window.confirm("Restore this Pi configuration backup?")) return;
+    if (!window.confirm("确定要恢复这个 Pi 配置备份吗？当前配置将被覆盖。")) return;
     setBusy(true);
     try {
       await restoreBackup(id);
-      setNotice({ kind: "success", text: "Backup restored" });
+      await refresh();
+      setNotice({ kind: "success", text: "备份已恢复" });
     } catch (error) {
       setNotice({ kind: "error", text: String(error) });
     } finally {
@@ -265,158 +289,235 @@ function App() {
     }
   };
 
+  const noticeBanner = notice && (
+    <button className={`notice ${notice.kind}`} onClick={() => setNotice(null)}>
+      {notice.kind === "success" ? <Check size={17} /> : <AlertCircle size={17} />}
+      <span>{notice.text}</span>
+      <span aria-hidden="true">×</span>
+    </button>
+  );
+
+  if (editing && draft) {
+    return (
+      <main className="app-shell">
+        <ProviderEditor
+          profile={draft}
+          isNew={isNewDraft}
+          saved={saved}
+          busy={busy}
+          onChange={(profile) => {
+            setDraft(profile);
+            setSaved(false);
+          }}
+          onSave={handleSave}
+          onDelete={() => handleDelete(draft.id)}
+          onDuplicate={() => openNew(draft)}
+          onTest={handleTest}
+          onBack={closeEditor}
+        />
+        {noticeBanner && <div className="page">{noticeBanner}</div>}
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
-      <ProviderSidebar
-        profiles={profiles}
-        selectedId={selectedId}
-        query={query}
-        view={view}
-        onQueryChange={setQuery}
-        onSelect={selectProfile}
-        onNew={() => {
-          const created = createProvider(profiles);
-          setSelectedId(created.id);
-          setDraft(created);
-          setSaved(false);
-          setView("providers");
-        }}
-        onImport={handleImport}
-        onViewChange={setView}
-      />
+      <header className="topbar">
+        <div className="topbar-brand">
+          <div className="brand-mark">π</div>
+          <span className="brand-name">Pi Switch</span>
+        </div>
 
-      <section className="workspace">
-        <header className="workspace-toolbar">
-          <div className="workspace-status">
-            <span className={status.piAvailable ? "runtime-dot ready" : "runtime-dot"} />
-            <div>
-              <strong>Pi {status.piVersion ?? "not found"}</strong>
-              <small>{enabledProfiles.length} enabled providers</small>
-            </div>
-          </div>
-
-          <div className="default-controls">
-            <label>
-              Default provider
-              <span className="select-wrap">
-                <select
-                  value={workspace.defaultProvider}
-                  onChange={(event) => {
-                    const provider = enabledProfiles.find((item) => item.id === event.target.value);
-                    setWorkspace({
-                      ...workspace,
-                      defaultProvider: event.target.value,
-                      defaultModel: provider?.models[0]?.id ?? "",
-                    });
-                  }}
-                >
-                  {enabledProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>{profile.name}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </span>
-            </label>
-            <label>
-              Default model
-              <span className="select-wrap">
-                <select
-                  value={workspace.defaultModel}
-                  onChange={(event) => setWorkspace({ ...workspace, defaultModel: event.target.value })}
-                >
-                  {defaultProvider?.models.map((model) => (
-                    <option key={model.id} value={model.id}>{model.name || model.id}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </span>
-            </label>
-            <label>
-              Thinking
-              <span className="select-wrap narrow">
-                <select
-                  value={workspace.defaultThinking}
-                  onChange={(event) =>
-                    setWorkspace({
-                      ...workspace,
-                      defaultThinking: event.target.value as ThinkingLevel,
-                    })
-                  }
-                >
-                  {(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as ThinkingLevel[]).map(
-                    (level) => <option key={level}>{level}</option>,
-                  )}
-                </select>
-                <ChevronDown size={14} />
-              </span>
-            </label>
-          </div>
-
-          <button className="apply-button" onClick={handleSync} disabled={busy || enabledProfiles.length === 0}>
-            {busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />}
-            Apply to Pi
+        <nav className="segmented" aria-label="主导航">
+          <button
+            className={view === "providers" ? "active" : ""}
+            onClick={() => setView("providers")}
+          >
+            <Boxes size={17} />
+            供应商
+            <span className="seg-count">{profiles.length}</span>
           </button>
-        </header>
-
-        {notice && (
-          <button className={`notice ${notice.kind}`} onClick={() => setNotice(null)}>
-            {notice.kind === "success" ? <Check size={16} /> : <AlertCircle size={16} />}
-            <span>{notice.text}</span>
-            <span className="notice-close">×</span>
+          <button
+            className={view === "backups" ? "active" : ""}
+            onClick={() => setView("backups")}
+          >
+            <ArchiveRestore size={17} />
+            备份
+            <span className="seg-count">{backups.length}</span>
           </button>
-        )}
+        </nav>
 
-        {view === "providers" && draft && (
-          <ProviderEditor
-            profile={draft}
-            saved={saved}
+        <div className="topbar-tools">
+          <button
+            className="tool-button"
+            onClick={handleImport}
+            disabled={busy}
+            title="从 Pi 现有配置导入"
+            aria-label="从 Pi 现有配置导入"
+          >
+            <Download size={18} />
+          </button>
+          <button
+            className="tool-button"
+            onClick={() => refresh().catch((error: unknown) => setNotice({ kind: "error", text: String(error) }))}
+            disabled={busy}
+            title="刷新"
+            aria-label="刷新"
+          >
+            <RefreshCw size={18} className={busy ? "spin" : undefined} />
+          </button>
+        </div>
+
+        <button className="add-fab" onClick={() => openNew()} title="新建供应商" aria-label="新建供应商">
+          <Plus size={22} />
+        </button>
+      </header>
+
+      <div className="active-bar">
+        <div className="runtime-badge">
+          <span className={status.piAvailable ? "runtime-dot ready" : "runtime-dot"} />
+          <div>
+            <strong>Pi {status.piVersion ?? "未检测到"}</strong>
+            <small>{enabledProfiles.length} 个已启用</small>
+          </div>
+        </div>
+
+        <div className="default-controls">
+          <label className="field-label">
+            默认供应商
+            <span className="select-wrap">
+              <select
+                value={workspace.defaultProvider}
+                onChange={(event) => {
+                  const provider = enabledProfiles.find((item) => item.id === event.target.value);
+                  setWorkspace({
+                    ...workspace,
+                    defaultProvider: event.target.value,
+                    defaultModel: provider?.models[0]?.id ?? "",
+                  });
+                }}
+              >
+                {enabledProfiles.length === 0 && <option value="">暂无可用供应商</option>}
+                {enabledProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
+            </span>
+          </label>
+          <label className="field-label">
+            默认模型
+            <span className="select-wrap">
+              <select
+                value={workspace.defaultModel}
+                onChange={(event) => setWorkspace({ ...workspace, defaultModel: event.target.value })}
+              >
+                {!defaultProvider && <option value="">暂无可用模型</option>}
+                {defaultProvider?.models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name || model.id}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
+            </span>
+          </label>
+          <label className="field-label">
+            思考强度
+            <span className="select-wrap">
+              <select
+                value={workspace.defaultThinking}
+                onChange={(event) =>
+                  setWorkspace({
+                    ...workspace,
+                    defaultThinking: event.target.value as ThinkingLevel,
+                  })
+                }
+              >
+                {(Object.keys(thinkingLabels) as ThinkingLevel[]).map((level) => (
+                  <option key={level} value={level}>
+                    {thinkingLabels[level]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
+            </span>
+          </label>
+        </div>
+
+        <button
+          className="primary-button"
+          onClick={() => handleSync()}
+          disabled={busy || enabledProfiles.length === 0}
+        >
+          {busy ? <RefreshCw className="spin" size={17} /> : <Save size={17} />}
+          应用到 Pi
+        </button>
+      </div>
+
+      <div className="page">
+        {noticeBanner}
+
+        {view === "providers" && (
+          <ProviderList
+            profiles={profiles}
+            query={query}
+            currentProviderId={workspace.defaultProvider}
             busy={busy}
-            onChange={changeDraft}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            onDuplicate={() => {
-              const copy = createProvider(profiles, draft);
-              setSelectedId(copy.id);
-              setDraft(copy);
-              setSaved(false);
+            onQueryChange={setQuery}
+            onEdit={openEditor}
+            onDuplicate={(id) => {
+              const source = profiles.find((profile) => profile.id === id);
+              if (source) openNew(source);
             }}
-            onTest={handleTest}
+            onDelete={handleDelete}
+            onUse={handleUse}
+            onNew={() => openNew()}
           />
         )}
 
         {view === "backups" && (
-          <div className="backups-pane">
-            <header className="pane-heading">
+          <>
+            <div className="page-heading">
               <div>
-                <h1>Backups</h1>
-                <p>{status.modelsPath}</p>
+                <h1>备份</h1>
+                <p>{status.modelsPath || "未检测到 Pi 配置路径"}</p>
               </div>
-              <ArchiveRestore size={22} />
-            </header>
-            <div className="backup-list">
-              {backups.map((backup) => (
-                <div className="backup-row" key={backup.id}>
-                  <Database size={18} />
-                  <div>
-                    <strong>{new Date(backup.createdAt).toLocaleString()}</strong>
-                    <code>{backup.path}</code>
-                  </div>
-                  <button className="secondary-button" onClick={() => handleRestore(backup.id)} disabled={busy}>
-                    <ArchiveRestore size={15} />
-                    Restore
-                  </button>
-                </div>
-              ))}
-              {backups.length === 0 && (
-                <div className="empty-pane">
-                  <Server size={28} />
-                  <strong>No backups</strong>
-                </div>
-              )}
             </div>
-          </div>
+            {backups.length === 0 ? (
+              <div className="empty-state">
+                <ArchiveRestore size={30} />
+                <strong>还没有备份</strong>
+                <span>每次「应用到 Pi」都会自动备份原有配置</span>
+              </div>
+            ) : (
+              <div className="card-list">
+                {backups.map((backup) => (
+                  <div className="backup-card" key={backup.id}>
+                    <div className="backup-icon">
+                      <Database size={19} />
+                    </div>
+                    <div>
+                      <strong>{new Date(backup.createdAt).toLocaleString("zh-CN")}</strong>
+                      <code>{backup.path}</code>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      onClick={() => handleRestore(backup.id)}
+                      disabled={busy}
+                    >
+                      <ArchiveRestore size={16} />
+                      恢复
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
-      </section>
+      </div>
     </main>
   );
 }

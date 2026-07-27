@@ -1,19 +1,20 @@
 import { useState } from "react";
 import {
-  CheckCircle2,
+  ArrowLeft,
   Copy,
   Eye,
   EyeOff,
   FlaskConical,
   Plus,
+  RefreshCw,
   Save,
   Trash2,
-  X,
 } from "lucide-react";
 import type { ApiProtocol, ModelProfile, ProviderProfile } from "../types";
 
 interface Props {
   profile: ProviderProfile;
+  isNew: boolean;
   saved: boolean;
   busy: boolean;
   onChange: (profile: ProviderProfile) => void;
@@ -21,6 +22,7 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   onTest: () => void;
+  onBack: () => void;
 }
 
 const protocols: Array<{ value: ApiProtocol; label: string }> = [
@@ -33,7 +35,7 @@ const protocols: Array<{ value: ApiProtocol; label: string }> = [
 function newModel(index: number): ModelProfile {
   return {
     id: `model-${index}`,
-    name: `Model ${index}`,
+    name: `模型 ${index}`,
     reasoning: false,
     input: ["text"],
     contextWindow: 128000,
@@ -43,6 +45,7 @@ function newModel(index: number): ModelProfile {
 
 export function ProviderEditor({
   profile,
+  isNew,
   saved,
   busy,
   onChange,
@@ -50,6 +53,7 @@ export function ProviderEditor({
   onDelete,
   onDuplicate,
   onTest,
+  onBack,
 }: Props) {
   const [showKey, setShowKey] = useState(false);
 
@@ -68,229 +72,259 @@ export function ProviderEditor({
   };
 
   return (
-    <div className="editor-pane">
-      <header className="editor-header">
-        <div className="title-input-group">
-          <input
-            className="provider-title-input"
-            aria-label="Provider name"
-            value={profile.name}
-            onChange={(event) => onChange({ ...profile, name: event.target.value })}
-          />
+    <>
+      <header className="editor-topbar">
+        <button className="back-button" onClick={onBack} aria-label="返回列表" title="返回列表">
+          <ArrowLeft size={18} />
+        </button>
+        <div>
+          <h1>{isNew ? "新建供应商" : `编辑 ${profile.name}`}</h1>
           <div className="provider-id-line">
-            <span className={profile.enabled ? "enabled-label" : "disabled-label"}>
-              {profile.enabled ? <CheckCircle2 size={14} /> : <X size={14} />}
-              {profile.enabled ? "Enabled" : "Disabled"}
-            </span>
+            <span>{profile.enabled ? "已启用" : "已停用"}</span>
             <code>{profile.id}</code>
           </div>
         </div>
-        <div className="icon-actions">
-          <button className="icon-button" onClick={onDuplicate} title="Duplicate provider">
-            <Copy size={17} />
-          </button>
-          <button className="icon-button danger" onClick={onDelete} title="Delete provider">
-            <Trash2 size={17} />
-          </button>
-        </div>
       </header>
 
-      <div className="editor-scroll">
-        <section className="form-section">
-          <div className="section-heading">
-            <h2>Connection</h2>
-            <label className="switch-row compact">
-              <input
-                type="checkbox"
-                checked={profile.enabled}
-                onChange={(event) =>
-                  onChange({ ...profile, enabled: event.target.checked })
-                }
-              />
-              <span className="switch-track"><span /></span>
-              Include in Pi
-            </label>
-          </div>
-          <div className="form-grid two-columns">
-            <label>
-              Provider ID
-              <input
-                value={profile.id}
-                disabled={profile.createdAt > 0}
-                onChange={(event) => onChange({ ...profile, id: event.target.value })}
-                spellCheck={false}
-              />
-            </label>
-            <label>
-              API protocol
-              <select
-                value={profile.api}
-                onChange={(event) =>
-                  onChange({ ...profile, api: event.target.value as ApiProtocol })
+      <div className="page">
+        <div className="editor-body">
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>基本信息</h2>
+              </div>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={profile.enabled}
+                  onChange={(event) => onChange({ ...profile, enabled: event.target.checked })}
+                />
+                <span className="switch-track">
+                  <span />
+                </span>
+                写入 Pi 配置
+              </label>
+            </div>
+
+            <div className="form-grid two-columns">
+              <label>
+                供应商名称
+                <input
+                  value={profile.name}
+                  onChange={(event) => onChange({ ...profile, name: event.target.value })}
+                  placeholder="例如：我的中转站"
+                />
+              </label>
+              <label>
+                供应商 ID
+                <input
+                  value={profile.id}
+                  disabled={profile.createdAt > 0}
+                  onChange={(event) => onChange({ ...profile, id: event.target.value })}
+                  spellCheck={false}
+                  placeholder="my-provider"
+                />
+              </label>
+              <label>
+                接口协议
+                <select
+                  value={profile.api}
+                  onChange={(event) =>
+                    onChange({ ...profile, api: event.target.value as ApiProtocol })
+                  }
+                >
+                  {protocols.map((protocol) => (
+                    <option key={protocol.value} value={protocol.value}>
+                      {protocol.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                请求地址
+                <input
+                  value={profile.baseUrl}
+                  onChange={(event) => onChange({ ...profile, baseUrl: event.target.value })}
+                  placeholder="https://api.example.com/v1"
+                  spellCheck={false}
+                />
+              </label>
+              <label className="span-two">
+                API Key
+                <span className="secret-field">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={profile.apiKey}
+                    onChange={(event) => onChange({ ...profile, apiKey: event.target.value })}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="sk-..."
+                  />
+                  <button
+                    type="button"
+                    className="field-icon-button"
+                    onClick={() => setShowKey((visible) => !visible)}
+                    title={showKey ? "隐藏密钥" : "显示密钥"}
+                    aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+                  >
+                    {showKey ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </span>
+              </label>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={profile.authHeader}
+                  onChange={(event) => onChange({ ...profile, authHeader: event.target.checked })}
+                />
+                <span className="switch-track">
+                  <span />
+                </span>
+                强制使用 Authorization Bearer 请求头
+              </label>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>模型列表</h2>
+                <span className="section-count">{profile.models.length}</span>
+              </div>
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  onChange({
+                    ...profile,
+                    models: [...profile.models, newModel(profile.models.length + 1)],
+                  })
                 }
               >
-                {protocols.map((protocol) => (
-                  <option key={protocol.value} value={protocol.value}>
-                    {protocol.label}
-                  </option>
+                <Plus size={16} />
+                添加模型
+              </button>
+            </div>
+
+            {profile.models.length === 0 ? (
+              <div className="empty-hint">还没有模型，添加至少一个才能写入 Pi 配置</div>
+            ) : (
+              <div className="model-list">
+                {profile.models.map((model, index) => (
+                  <div className="model-card" key={`${index}-${model.id}`}>
+                    <div className="model-card-head">
+                      <span className="model-index">模型 {index + 1}</span>
+                      <button
+                        className="icon-button compact danger"
+                        onClick={() => removeModel(index)}
+                        title="移除模型"
+                        aria-label={`移除模型 ${model.name || model.id}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+
+                    <div className="model-grid">
+                      <label className="field-label">
+                        模型 ID
+                        <input
+                          value={model.id}
+                          onChange={(event) => updateModel(index, { id: event.target.value })}
+                          spellCheck={false}
+                        />
+                      </label>
+                      <label className="field-label">
+                        显示名称
+                        <input
+                          value={model.name}
+                          onChange={(event) => updateModel(index, { name: event.target.value })}
+                        />
+                      </label>
+                      <label className="field-label">
+                        上下文窗口
+                        <input
+                          type="number"
+                          min={1}
+                          value={model.contextWindow}
+                          onChange={(event) =>
+                            updateModel(index, { contextWindow: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                      <label className="field-label">
+                        最大输出
+                        <input
+                          type="number"
+                          min={1}
+                          value={model.maxTokens}
+                          onChange={(event) =>
+                            updateModel(index, { maxTokens: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className="capability-controls">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={model.reasoning}
+                          onChange={(event) =>
+                            updateModel(index, { reasoning: event.target.checked })
+                          }
+                        />
+                        支持推理
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={model.input.includes("image")}
+                          onChange={(event) =>
+                            updateModel(index, {
+                              input: event.target.checked ? ["text", "image"] : ["text"],
+                            })
+                          }
+                        />
+                        支持图片输入
+                      </label>
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </label>
-            <label className="span-two">
-              API endpoint
-              <input
-                value={profile.baseUrl}
-                onChange={(event) => onChange({ ...profile, baseUrl: event.target.value })}
-                placeholder="https://api.example.com/v1"
-                spellCheck={false}
-              />
-            </label>
-            <label className="span-two">
-              API key
-              <span className="secret-field">
-                <input
-                  type={showKey ? "text" : "password"}
-                  value={profile.apiKey}
-                  onChange={(event) => onChange({ ...profile, apiKey: event.target.value })}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  className="field-icon-button"
-                  onClick={() => setShowKey((visible) => !visible)}
-                  title={showKey ? "Hide API key" : "Show API key"}
-                >
-                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </span>
-            </label>
-          </div>
-          <label className="switch-row">
-            <input
-              type="checkbox"
-              checked={profile.authHeader}
-              onChange={(event) =>
-                onChange({ ...profile, authHeader: event.target.checked })
-              }
-            />
-            <span className="switch-track"><span /></span>
-            Force Authorization bearer header
-          </label>
-        </section>
-
-        <section className="form-section models-section">
-          <div className="section-heading">
-            <div>
-              <h2>Models</h2>
-              <span className="section-count">{profile.models.length}</span>
-            </div>
-            <button
-              className="secondary-button"
-              onClick={() =>
-                onChange({
-                  ...profile,
-                  models: [...profile.models, newModel(profile.models.length + 1)],
-                })
-              }
-            >
-              <Plus size={16} />
-              Add model
-            </button>
-          </div>
-
-          <div className="model-table" role="table" aria-label="Provider models">
-            <div className="model-row model-header" role="row">
-              <span>Model ID</span>
-              <span>Name</span>
-              <span>Context</span>
-              <span>Output</span>
-              <span>Capabilities</span>
-              <span />
-            </div>
-            {profile.models.map((model, index) => (
-              <div className="model-row" role="row" key={`${index}-${model.id}`}>
-                <input
-                  aria-label="Model ID"
-                  value={model.id}
-                  onChange={(event) => updateModel(index, { id: event.target.value })}
-                  spellCheck={false}
-                />
-                <input
-                  aria-label="Model name"
-                  value={model.name}
-                  onChange={(event) => updateModel(index, { name: event.target.value })}
-                />
-                <input
-                  aria-label="Context window"
-                  type="number"
-                  min={1}
-                  value={model.contextWindow}
-                  onChange={(event) =>
-                    updateModel(index, { contextWindow: Number(event.target.value) })
-                  }
-                />
-                <input
-                  aria-label="Maximum output tokens"
-                  type="number"
-                  min={1}
-                  value={model.maxTokens}
-                  onChange={(event) =>
-                    updateModel(index, { maxTokens: Number(event.target.value) })
-                  }
-                />
-                <div className="capability-controls">
-                  <label title="Reasoning">
-                    <input
-                      type="checkbox"
-                      checked={model.reasoning}
-                      onChange={(event) =>
-                        updateModel(index, { reasoning: event.target.checked })
-                      }
-                    />
-                    R
-                  </label>
-                  <label title="Image input">
-                    <input
-                      type="checkbox"
-                      checked={model.input.includes("image")}
-                      onChange={(event) =>
-                        updateModel(index, {
-                          input: event.target.checked ? ["text", "image"] : ["text"],
-                        })
-                      }
-                    />
-                    V
-                  </label>
-                </div>
-                <button
-                  className="icon-button compact danger"
-                  onClick={() => removeModel(index)}
-                  title="Remove model"
-                >
-                  <Trash2 size={15} />
-                </button>
               </div>
-            ))}
-          </div>
-        </section>
-      </div>
+            )}
+          </section>
 
-      <footer className="editor-footer">
-        <span className={saved ? "save-state saved" : "save-state"}>
-          {saved ? "Saved" : "Unsaved changes"}
-        </span>
-        <div className="footer-actions">
-          <button className="secondary-button" onClick={onTest} disabled={busy}>
-            <FlaskConical size={16} />
-            Test
-          </button>
-          <button className="primary-button" onClick={onSave} disabled={busy}>
-            <Save size={16} />
-            Save provider
-          </button>
+          <footer className="editor-footer">
+            <span className={saved ? "save-state saved" : "save-state"}>
+              {saved ? "已保存" : "有未保存的修改"}
+            </span>
+            <div className="footer-actions">
+              {!isNew && (
+                <>
+                  <button className="ghost-button" onClick={onDuplicate}>
+                    <Copy size={16} />
+                    复制
+                  </button>
+                  <button className="ghost-button" onClick={onDelete} disabled={busy}>
+                    <Trash2 size={16} />
+                    删除
+                  </button>
+                </>
+              )}
+              <button className="secondary-button" onClick={onTest} disabled={busy}>
+                {busy ? <RefreshCw className="spin" size={16} /> : <FlaskConical size={16} />}
+                连通性测试
+              </button>
+              <button className="primary-button" onClick={onSave} disabled={busy}>
+                <Save size={16} />
+                保存
+              </button>
+            </div>
+          </footer>
         </div>
-      </footer>
-    </div>
+      </div>
+    </>
   );
 }
