@@ -111,6 +111,35 @@ pub struct ApprovalStatus {
     pub config_path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProfile {
+    pub name: String,
+    pub description: String,
+    pub provider: String,
+    pub model: String,
+    #[serde(default = "default_thinking")]
+    pub thinking: String,
+    #[serde(default)]
+    pub tools: Vec<String>,
+    #[serde(default)]
+    pub system_prompt: String,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub created_at: i64,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStatus {
+    pub extension_installed: bool,
+    pub agents_path: String,
+    pub extension_path: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppStatus {

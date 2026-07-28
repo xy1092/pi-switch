@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::models::{ApprovalSettings, ProviderProfile, WorkspaceSettings};
+use crate::models::{AgentProfile, ApprovalSettings, ProviderProfile, WorkspaceSettings};
 
 pub fn now_ms() -> i64 {
     SystemTime::now()
@@ -53,10 +53,90 @@ fn open_connection() -> Result<Connection, String> {
              CREATE TABLE IF NOT EXISTS app_settings (
                key TEXT PRIMARY KEY,
                value TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS agent_profiles (
+               name TEXT PRIMARY KEY,
+               profile_json TEXT NOT NULL,
+               enabled INTEGER NOT NULL DEFAULT 1,
+               created_at INTEGER NOT NULL,
+               updated_at INTEGER NOT NULL
              );",
         )
         .map_err(|error| error.to_string())?;
     Ok(connection)
+}
+
+pub fn list_agent_profiles() -> Result<Vec<AgentProfile>, String> {
+    let connection = open_connection()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT profile_json, enabled, created_at, updated_at
+             FROM agent_profiles
+             ORDER BY enabled DESC, name COLLATE NOCASE",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, bool>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+    rows.map(|row| {
+        let (json, enabled, created_at, updated_at) = row.map_err(|error| error.to_string())?;
+        let mut profile: AgentProfile =
+            serde_json::from_str(&json).map_err(|error| error.to_string())?;
+        profile.enabled = enabled;
+        profile.created_at = created_at;
+        profile.updated_at = updated_at;
+        Ok(profile)
+    })
+    .collect()
+}
+
+pub fn save_agent_profile(mut profile: AgentProfile) -> Result<AgentProfile, String> {
+    let connection = open_connection()?;
+    let existing = connection
+        .query_row(
+            "SELECT created_at FROM agent_profiles WHERE name = ?1",
+            params![profile.name],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let now = now_ms();
+    profile.created_at = existing.unwrap_or(now);
+    profile.updated_at = now;
+    let value = serde_json::to_string(&profile).map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO agent_profiles (name, profile_json, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(name) DO UPDATE SET
+               profile_json = excluded.profile_json,
+               enabled = excluded.enabled,
+               updated_at = excluded.updated_at",
+            params![
+                profile.name,
+                value,
+                profile.enabled,
+                profile.created_at,
+                profile.updated_at
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(profile)
+}
+
+pub fn delete_agent_profile(name: &str) -> Result<(), String> {
+    let connection = open_connection()?;
+    connection
+        .execute("DELETE FROM agent_profiles WHERE name = ?1", params![name])
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn decode_profile(

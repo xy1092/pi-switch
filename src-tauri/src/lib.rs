@@ -1,11 +1,12 @@
+mod agents;
 mod approval;
 mod models;
 mod pi_config;
 mod store;
 
 use models::{
-    AppStatus, ApprovalSettings, ApprovalStatus, BackupInfo, FetchedModel, ProviderProfile,
-    SyncResult, TestResult, WorkspaceSettings,
+    AgentProfile, AgentStatus, AppStatus, ApprovalSettings, ApprovalStatus, BackupInfo,
+    FetchedModel, ProviderProfile, SyncResult, TestResult, WorkspaceSettings,
 };
 
 #[tauri::command]
@@ -81,6 +82,31 @@ fn save_approval_settings(settings: ApprovalSettings) -> Result<ApprovalStatus, 
     approval::save_settings(settings)
 }
 
+#[tauri::command]
+fn list_agents() -> Result<Vec<AgentProfile>, String> {
+    agents::list()
+}
+
+#[tauri::command]
+fn get_agent_status() -> Result<AgentStatus, String> {
+    agents::get_status()
+}
+
+#[tauri::command]
+fn save_agent(profile: AgentProfile) -> Result<AgentProfile, String> {
+    agents::save(profile)
+}
+
+#[tauri::command]
+fn delete_agent(name: String) -> Result<(), String> {
+    agents::delete(&name)
+}
+
+#[tauri::command]
+fn install_default_agents() -> Result<Vec<AgentProfile>, String> {
+    agents::install_defaults()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -99,7 +125,12 @@ pub fn run() {
             restore_backup,
             get_approval_settings,
             get_approval_status,
-            save_approval_settings
+            save_approval_settings,
+            list_agents,
+            get_agent_status,
+            save_agent,
+            delete_agent,
+            install_default_agents
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

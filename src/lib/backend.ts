@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppStatus,
+  AgentProfile,
+  AgentStatus,
   ApprovalSettings,
   ApprovalStatus,
   BackupInfo,
@@ -225,4 +227,45 @@ export async function getApprovalStatus(): Promise<ApprovalStatus> {
     extensionPath: "~/.pi/agent/extensions/pi-approval/index.ts",
     configPath: "~/.pi/agent/extensions/pi-approval/config.json",
   };
+}
+
+const AGENTS_KEY = "pi-switch-preview-agents";
+
+export async function listAgents(): Promise<AgentProfile[]> {
+  if (isTauri) return invoke("list_agents");
+  return JSON.parse(localStorage.getItem(AGENTS_KEY) ?? "[]") as AgentProfile[];
+}
+
+export async function getAgentStatus(): Promise<AgentStatus> {
+  if (isTauri) return invoke("get_agent_status");
+  return {
+    extensionInstalled: (await listAgents()).some((agent) => agent.enabled),
+    agentsPath: "~/.pi/agent/agents",
+    extensionPath: "~/.pi/agent/extensions/subagent/index.ts",
+  };
+}
+
+export async function saveAgent(profile: AgentProfile): Promise<AgentProfile> {
+  if (isTauri) return invoke("save_agent", { profile });
+  const agents = await listAgents();
+  const now = Date.now();
+  const saved = { ...profile, createdAt: profile.createdAt || now, updatedAt: now };
+  const index = agents.findIndex((agent) => agent.name === profile.name);
+  if (index >= 0) agents[index] = saved;
+  else agents.push(saved);
+  localStorage.setItem(AGENTS_KEY, JSON.stringify(agents));
+  return saved;
+}
+
+export async function deleteAgent(name: string): Promise<void> {
+  if (isTauri) return invoke("delete_agent", { name });
+  localStorage.setItem(
+    AGENTS_KEY,
+    JSON.stringify((await listAgents()).filter((agent) => agent.name !== name)),
+  );
+}
+
+export async function installDefaultAgents(): Promise<AgentProfile[]> {
+  if (isTauri) return invoke("install_default_agents");
+  return listAgents();
 }

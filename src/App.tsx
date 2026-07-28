@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArchiveRestore,
+  Bot,
   Boxes,
   Check,
   ChevronDown,
@@ -16,23 +17,31 @@ import "./App.css";
 import { ProviderEditor } from "./components/ProviderEditor";
 import { ProviderList } from "./components/ProviderList";
 import { ApprovalSettings as ApprovalSettingsView } from "./components/ApprovalSettings";
+import { AgentSettings } from "./components/AgentSettings";
 import {
+  deleteAgent,
   deleteProfile,
   fetchProviderModels,
   getAppStatus,
+  getAgentStatus,
   getApprovalSettings,
   getApprovalStatus,
   getWorkspaceSettings,
   importLiveConfig,
+  installDefaultAgents,
   listBackups,
+  listAgents,
   listProfiles,
   restoreBackup,
   saveProfile,
   saveApprovalSettings,
+  saveAgent,
   syncConfiguration,
   testProfile,
 } from "./lib/backend";
 import type {
+  AgentProfile,
+  AgentStatus,
   AppStatus,
   ApprovalSettings,
   ApprovalStatus,
@@ -42,7 +51,7 @@ import type {
   WorkspaceSettings,
 } from "./types";
 
-type View = "providers" | "permissions" | "backups";
+type View = "providers" | "agents" | "permissions" | "backups";
 
 const thinkingLabels: Record<ThinkingLevel, string> = {
   off: "关闭",
@@ -80,6 +89,12 @@ const emptyApprovalStatus: ApprovalStatus = {
   installed: false,
   extensionPath: "~/.pi/agent/extensions/pi-approval/index.ts",
   configPath: "~/.pi/agent/extensions/pi-approval/config.json",
+};
+
+const emptyAgentStatus: AgentStatus = {
+  extensionInstalled: false,
+  agentsPath: "~/.pi/agent/agents",
+  extensionPath: "~/.pi/agent/extensions/subagent/index.ts",
 };
 
 function normalizeApproval(
@@ -149,6 +164,8 @@ function App() {
   const [status, setStatus] = useState<AppStatus>(emptyStatus);
   const [approval, setApproval] = useState<ApprovalSettings>(emptyApproval);
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>(emptyApprovalStatus);
+  const [agents, setAgents] = useState<AgentProfile[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>(emptyAgentStatus);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [view, setView] = useState<View>("providers");
   const [query, setQuery] = useState("");
@@ -166,13 +183,15 @@ function App() {
   const isNewDraft = Boolean(draft && !profiles.some((profile) => profile.id === draft.id));
 
   const refresh = async () => {
-    const [loadedProfiles, loadedWorkspace, loadedStatus, loadedBackups, loadedApproval, loadedApprovalStatus] = await Promise.all([
+    const [loadedProfiles, loadedWorkspace, loadedStatus, loadedBackups, loadedApproval, loadedApprovalStatus, loadedAgents, loadedAgentStatus] = await Promise.all([
       listProfiles(),
       getWorkspaceSettings(),
       getAppStatus(),
       listBackups(),
       getApprovalSettings(),
       getApprovalStatus(),
+      listAgents(),
+      getAgentStatus(),
     ]);
     setProfiles(loadedProfiles);
     setWorkspace(normalizeWorkspace(loadedProfiles, loadedWorkspace));
@@ -180,6 +199,8 @@ function App() {
     setBackups(loadedBackups);
     setApproval(normalizeApproval(loadedProfiles, loadedApproval));
     setApprovalStatus(loadedApprovalStatus);
+    setAgents(loadedAgents);
+    setAgentStatus(loadedAgentStatus);
   };
 
   useEffect(() => {
@@ -390,6 +411,50 @@ function App() {
     }
   };
 
+  const handleSaveAgent = async (profile: AgentProfile) => {
+    setBusy(true);
+    try {
+      const savedAgent = await saveAgent(profile);
+      setAgents(await listAgents());
+      setAgentStatus(await getAgentStatus());
+      setNotice({ kind: "success", text: `Agent「${savedAgent.name}」已保存` });
+      return savedAgent;
+    } catch (error) {
+      setNotice({ kind: "error", text: String(error) });
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteAgent = async (name: string) => {
+    setBusy(true);
+    try {
+      await deleteAgent(name);
+      setAgents(await listAgents());
+      setAgentStatus(await getAgentStatus());
+      setNotice({ kind: "success", text: `Agent「${name}」已删除` });
+    } catch (error) {
+      setNotice({ kind: "error", text: String(error) });
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleInstallDefaultAgents = async () => {
+    setBusy(true);
+    try {
+      setAgents(await installDefaultAgents());
+      setAgentStatus(await getAgentStatus());
+      setNotice({ kind: "success", text: "五个推荐 Agent 已安装，重新加载 Pi 后生效" });
+    } catch (error) {
+      setNotice({ kind: "error", text: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const noticeBanner = notice && (
     <button className={`notice ${notice.kind}`} onClick={() => setNotice(null)}>
       {notice.kind === "success" ? <Check size={17} /> : <AlertCircle size={17} />}
@@ -438,6 +503,14 @@ function App() {
             <Boxes size={17} />
             供应商
             <span className="seg-count">{profiles.length}</span>
+          </button>
+          <button
+            className={view === "agents" ? "active" : ""}
+            onClick={() => setView("agents")}
+          >
+            <Bot size={17} />
+            Agents
+            <span className="seg-count">{agents.length}</span>
           </button>
           <button
             className={view === "permissions" ? "active" : ""}
@@ -598,6 +671,18 @@ function App() {
             busy={busy}
             onChange={setApproval}
             onSave={handleSaveApproval}
+          />
+        )}
+
+        {view === "agents" && (
+          <AgentSettings
+            agents={agents}
+            status={agentStatus}
+            profiles={profiles}
+            busy={busy}
+            onSave={handleSaveAgent}
+            onDelete={handleDeleteAgent}
+            onInstallDefaults={handleInstallDefaultAgents}
           />
         )}
 

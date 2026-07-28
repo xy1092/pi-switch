@@ -19,10 +19,13 @@ Pi Switch 是给 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的�
 - `deepseek-v4-flash` 快速主审，`deepseek-v4-pro` 复杂情况复核
 - Pi 内使用 `/permission` 选择每次询问、Approve for me、锁定或本会话完全访问
 - 模型接口返回上下文和输出上限时自动导入，未知时保留为自动值
+- 全局子 Agent 的新建、编辑、复制、启停和删除
+- 一键安装 explorer、analyst、planner、implementer、reviewer 五个推荐模板
+- 自动安装 Pi 官方 `subagent` 调度器，支持单次、并行和链式委派
 
 ## 界面
 
-顶栏：品牌名、供应商/权限/备份分段切换、导入与刷新工具按钮、右上新建按钮。
+顶栏：品牌名、供应商/Agents/权限/备份分段切换、导入与刷新工具按钮、右上新建按钮。
 
 状态条：Pi 版本与启用数量、默认供应商/默认模型/思考强度三个下拉、「应用到 Pi」主按钮。
 
@@ -46,6 +49,8 @@ Pi Switch 自身数据：
 ~/.pi/agent/extensions/pi-approval/index.ts
 ~/.pi/agent/extensions/pi-approval/config.json
 ~/.pi/agent/extensions/pi-approval/audit/
+~/.pi/agent/agents/*.md
+~/.pi/agent/extensions/subagent/index.ts
 ```
 
 Pi Switch 会保留它不管理的字段和供应商。API Key 不会写入 `models.json`，而是存在私有 SQLite 数据库里，并以仅用户可读的权限同步到 Pi 的 `auth.json`。
@@ -81,7 +86,7 @@ makepkg --clean --force
 安装：
 
 ```bash
-sudo pacman -U ./pi-switch-0.3.2-1-x86_64.pkg.tar.zst
+sudo pacman -U ./pi-switch-0.4.0-1-x86_64.pkg.tar.zst
 ```
 
 ### 更新已安装的版本

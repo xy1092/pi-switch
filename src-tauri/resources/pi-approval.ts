@@ -104,6 +104,9 @@ function classify(toolName: string, input: Record<string, unknown>, cwd: string)
     return { action: "review", reason: "Shell 命令需要语义审批" };
   }
 
+  if (toolName === "subagent") {
+    return { action: "review", reason: "调用已配置的隔离子 Agent" };
+  }
   if (/browser|web|agent|workflow/i.test(toolName)) {
     return { action: "ask", reason: "外部交互或代理调用必须由用户确认" };
   }

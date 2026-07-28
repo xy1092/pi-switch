@@ -61,6 +61,25 @@ export interface ApprovalStatus {
   configPath: string;
 }
 
+export interface AgentProfile {
+  name: string;
+  description: string;
+  provider: string;
+  model: string;
+  thinking: ThinkingLevel;
+  tools: string[];
+  systemPrompt: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AgentStatus {
+  extensionInstalled: boolean;
+  agentsPath: string;
+  extensionPath: string;
+}
+
 export interface AppStatus {
   piVersion: string | null;
   piAvailable: boolean;

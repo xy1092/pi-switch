@@ -1,6 +1,6 @@
 [package]
 name = "pi-switch"
-version = "0.3.2"
+version = "0.4.0"
 description = "Desktop provider and model configuration manager for Pi Coding Agent"
 authors = ["Pi Switch contributors"]
 edition = "2021"
