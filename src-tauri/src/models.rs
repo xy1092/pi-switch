@@ -4,14 +4,6 @@ fn default_input() -> Vec<String> {
     vec!["text".to_string()]
 }
 
-fn default_context_window() -> u64 {
-    128_000
-}
-
-fn default_max_tokens() -> u64 {
-    16_384
-}
-
 fn default_thinking() -> String {
     "off".to_string()
 }
@@ -26,10 +18,10 @@ pub struct ModelProfile {
     pub reasoning: bool,
     #[serde(default = "default_input")]
     pub input: Vec<String>,
-    #[serde(default = "default_context_window")]
-    pub context_window: u64,
-    #[serde(default = "default_max_tokens")]
-    pub max_tokens: u64,
+    #[serde(default)]
+    pub context_window: Option<u64>,
+    #[serde(default)]
+    pub max_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +149,10 @@ pub struct FetchedModel {
     pub name: String,
     #[serde(default)]
     pub owned_by: Option<String>,
+    #[serde(default)]
+    pub context_window: Option<u64>,
+    #[serde(default)]
+    pub max_tokens: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]

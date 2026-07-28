@@ -40,8 +40,8 @@ function newModel(): ModelProfile {
     name: "",
     reasoning: false,
     input: ["text"],
-    contextWindow: 128000,
-    maxTokens: 16384,
+    contextWindow: null,
+    maxTokens: null,
   };
 }
 
@@ -261,9 +261,12 @@ export function ProviderEditor({
                         <input
                           type="number"
                           min={1}
-                          value={model.contextWindow}
+                          value={model.contextWindow ?? ""}
+                          placeholder="自动"
                           onChange={(event) =>
-                            updateModel(index, { contextWindow: Number(event.target.value) })
+                            updateModel(index, {
+                              contextWindow: event.target.value ? Number(event.target.value) : null,
+                            })
                           }
                         />
                       </label>
@@ -272,9 +275,12 @@ export function ProviderEditor({
                         <input
                           type="number"
                           min={1}
-                          value={model.maxTokens}
+                          value={model.maxTokens ?? ""}
+                          placeholder="自动"
                           onChange={(event) =>
-                            updateModel(index, { maxTokens: Number(event.target.value) })
+                            updateModel(index, {
+                              maxTokens: event.target.value ? Number(event.target.value) : null,
+                            })
                           }
                         />
                       </label>

@@ -65,20 +65,25 @@ fn atomic_write_json(path: &Path, value: &Value) -> Result<(), String> {
 }
 
 fn model_json(model: &ModelProfile) -> Value {
-    json!({
+    let mut value = json!({
         "id": model.id,
         "name": if model.name.trim().is_empty() { &model.id } else { &model.name },
         "reasoning": model.reasoning,
         "input": model.input,
-        "contextWindow": model.context_window,
-        "maxTokens": model.max_tokens,
         "cost": {
             "input": 0,
             "output": 0,
             "cacheRead": 0,
             "cacheWrite": 0
         }
-    })
+    });
+    if let Some(context_window) = model.context_window {
+        value["contextWindow"] = json!(context_window);
+    }
+    if let Some(max_tokens) = model.max_tokens {
+        value["maxTokens"] = json!(max_tokens);
+    }
+    value
 }
 
 fn provider_json(profile: &ProviderProfile) -> Value {
@@ -396,14 +401,8 @@ pub fn import_live() -> Result<Vec<ProviderProfile>, String> {
                             .collect()
                     })
                     .unwrap_or_else(|| vec!["text".to_string()]),
-                context_window: model
-                    .get("contextWindow")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(128_000),
-                max_tokens: model
-                    .get("maxTokens")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(16_384),
+                context_window: model.get("contextWindow").and_then(Value::as_u64),
+                max_tokens: model.get("maxTokens").and_then(Value::as_u64),
             });
         }
         if imported_models.is_empty() {
@@ -535,10 +534,29 @@ fn parse_fetched_models(value: Value) -> Result<Vec<FetchedModel>, String> {
                 .or_else(|| entry.get("ownedBy"))
                 .and_then(Value::as_str)
                 .map(str::to_string);
+            let number = |names: &[&str]| {
+                names
+                    .iter()
+                    .find_map(|name| entry.get(*name).and_then(Value::as_u64))
+                    .filter(|value| *value > 0)
+            };
             Some(FetchedModel {
                 id: id.to_string(),
                 name: name.to_string(),
                 owned_by,
+                context_window: number(&[
+                    "context_window",
+                    "contextWindow",
+                    "context_length",
+                    "contextLength",
+                    "max_model_len",
+                ]),
+                max_tokens: number(&[
+                    "max_tokens",
+                    "maxTokens",
+                    "max_output_tokens",
+                    "maxOutputTokens",
+                ]),
             })
         })
         .collect::<Vec<_>>();
@@ -714,8 +732,8 @@ mod tests {
                 name: "Test Model".to_string(),
                 reasoning: true,
                 input: vec!["text".to_string(), "image".to_string()],
-                context_window: 128_000,
-                max_tokens: 16_384,
+                context_window: Some(128_000),
+                max_tokens: Some(16_384),
             }],
             enabled: true,
             created_at: 0,
@@ -736,8 +754,8 @@ mod tests {
                 name: "Second Model".to_string(),
                 reasoning: false,
                 input: vec!["text".to_string()],
-                context_window: 64_000,
-                max_tokens: 8_192,
+                context_window: Some(64_000),
+                max_tokens: Some(8_192),
             }],
             enabled: true,
             created_at: 0,
@@ -752,6 +770,16 @@ mod tests {
         assert_eq!(value["models"][0]["contextWindow"], 128_000);
         assert_eq!(value["models"][0]["reasoning"], true);
         assert!(value.get("apiKey").is_none());
+    }
+
+    #[test]
+    fn provider_json_omits_unknown_token_limits() {
+        let mut profile = example_profile();
+        profile.models[0].context_window = None;
+        profile.models[0].max_tokens = None;
+        let value = provider_json(&profile);
+        assert!(value["models"][0].get("contextWindow").is_none());
+        assert!(value["models"][0].get("maxTokens").is_none());
     }
 
     #[test]
@@ -805,12 +833,14 @@ mod tests {
             "object": "list",
             "data": [
                 {"id": "gpt-z", "owned_by": "openai"},
-                {"id": "claude-a", "owned_by": "anthropic"}
+                {"id": "claude-a", "owned_by": "anthropic", "context_window": 200000, "max_output_tokens": 32000}
             ]
         }))
         .unwrap();
         assert_eq!(models[0].id, "claude-a");
         assert_eq!(models[0].name, "claude-a");
+        assert_eq!(models[0].context_window, Some(200_000));
+        assert_eq!(models[0].max_tokens, Some(32_000));
         assert_eq!(models[1].owned_by.as_deref(), Some("openai"));
     }
 

@@ -84,7 +84,7 @@ export function ApprovalSettings({ settings, status, profiles, busy, onChange, o
             <button
               key={mode.value}
               className={settings.mode === mode.value ? "active" : ""}
-              onClick={() => onChange({ ...settings, mode: mode.value })}
+              onClick={() => onChange({ ...settings, enabled: true, mode: mode.value })}
               role="radio"
               aria-checked={settings.mode === mode.value}
             >

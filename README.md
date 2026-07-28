@@ -17,6 +17,8 @@ Pi Switch 是给 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的�
 - SQLite 作为唯一数据源
 - Pi 执行前权限审批，支持手动、DeepSeek 自动审批和锁定模式
 - `deepseek-v4-flash` 快速主审，`deepseek-v4-pro` 复杂情况复核
+- Pi 内使用 `/permission` 选择每次询问、Approve for me、锁定或本会话完全访问
+- 模型接口返回上下文和输出上限时自动导入，未知时保留为自动值
 
 ## 界面
 
@@ -79,7 +81,7 @@ makepkg --clean --force
 安装：
 
 ```bash
-sudo pacman -U ./pi-switch-0.3.0-1-x86_64.pkg.tar.zst
+sudo pacman -U ./pi-switch-0.3.1-1-x86_64.pkg.tar.zst
 ```
 
 ### 更新已安装的版本

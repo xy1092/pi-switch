@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { complete } from "@earendil-works/pi-ai/compat";
@@ -40,6 +40,7 @@ function loadConfig(): Config {
 }
 
 let config = loadConfig();
+let sessionMode: Mode | "full" | null = null;
 
 const secretKey = /(api[-_]?key|token|secret|password|passwd|authorization|cookie)/i;
 const sensitivePath = /(?:^|\/)(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker|auth\.json|credentials?|id_(?:rsa|ed25519)|\.env(?:\.[^/]+)?|pi-approval)(?:\/|$)/i;
@@ -218,6 +219,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
     config = loadConfig();
     if (!config.enabled) return;
+    const effectiveMode = sessionMode ?? config.mode;
+    if (effectiveMode === "full") return;
     const input = event.input as Record<string, unknown>;
     const classification = classify(event.toolName, input, ctx.cwd);
 
@@ -229,7 +232,7 @@ export default function (pi: ExtensionAPI) {
       audit(event.toolName, input, "deny", classification.reason);
       return { block: true, reason: classification.reason };
     }
-    if (config.mode === "locked") {
+    if (effectiveMode === "locked") {
       const reason = `锁定模式：${classification.reason}`;
       audit(event.toolName, input, "deny", reason);
       return { block: true, reason };
@@ -237,7 +240,7 @@ export default function (pi: ExtensionAPI) {
 
     let decision: Decision = "ask";
     let reason = classification.reason;
-    if (config.mode === "auto" && classification.action === "review") {
+    if (effectiveMode === "auto" && classification.action === "review") {
       const conversation = recentContext(ctx);
       let review = await runReviewer(config.primaryProvider, config.primaryModel, event.toolName, input, ctx.cwd, conversation, ctx);
       if (!review || review.decision === "ask" || review.risk === "high" || review.risk === "critical") {
@@ -264,21 +267,57 @@ export default function (pi: ExtensionAPI) {
     if (!allowed) return { block: true, reason: ctx.hasUI ? "用户拒绝执行" : `无交互界面，已阻止：${reason}` };
   });
 
+  const setPermissionMode = async (args: string, ctx: any) => {
+    const requested = args.trim().toLowerCase();
+    if (requested === "status") {
+      ctx.ui.notify(`权限模式：${sessionMode ?? config.mode}${sessionMode ? "（本会话）" : ""}`, "info");
+      return;
+    }
+
+    let selected = requested;
+    if (!selected) {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("用法：/permission manual|auto|locked|full|status", "warning");
+        return;
+      }
+      const choice = await ctx.ui.select("选择本会话的权限模式", [
+        "Approve for me（模型自动审批）",
+        "每次询问",
+        "锁定（需审批操作全部拒绝）",
+        "完全访问（本会话不拦截）",
+        "使用 Pi Switch 默认设置",
+      ]);
+      const choices: Record<string, string> = {
+        "Approve for me（模型自动审批）": "auto",
+        "每次询问": "manual",
+        "锁定（需审批操作全部拒绝）": "locked",
+        "完全访问（本会话不拦截）": "full",
+        "使用 Pi Switch 默认设置": "default",
+      };
+      selected = choice ? choices[choice] ?? "" : "";
+    }
+
+    if (selected === "default") {
+      sessionMode = null;
+      ctx.ui.notify(`已恢复 Pi Switch 默认权限：${config.mode}`, "info");
+      return;
+    }
+    if (!["manual", "auto", "locked", "full"].includes(selected)) {
+      ctx.ui.notify("用法：/permission manual|auto|locked|full|status", "warning");
+      return;
+    }
+    sessionMode = selected as Mode | "full";
+    const label = selected === "full" ? "完全访问" : selected;
+    ctx.ui.notify(`本会话权限已切换为 ${label}`, selected === "full" ? "warning" : "info");
+  };
+
+  pi.registerCommand("permission", {
+    description: "选择本会话权限：询问、自动审批、锁定或完全访问",
+    handler: setPermissionMode,
+  });
+
   pi.registerCommand("safety", {
-    description: "查看或切换权限审批模式",
-    handler: async (args, ctx) => {
-      const requested = args.trim() as Mode | "status";
-      if (requested === "status" || !requested) {
-        ctx.ui.notify(`权限审批：${config.enabled ? config.mode : "disabled"}`, "info");
-        return;
-      }
-      if (!["manual", "auto", "locked"].includes(requested)) {
-        ctx.ui.notify("用法：/safety manual|auto|locked|status", "warning");
-        return;
-      }
-      config = { ...config, mode: requested };
-      writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-      ctx.ui.notify(`权限审批已切换为 ${requested}`, "info");
-    },
+    description: "兼容命令：等同于 /permission",
+    handler: setPermissionMode,
   });
 }

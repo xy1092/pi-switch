@@ -163,12 +163,23 @@ export async function fetchProviderModels(
   });
   if (!response.ok) throw new Error(`模型接口返回 HTTP ${response.status}`);
   const body = (await response.json()) as {
-    data?: Array<{ id: string; name?: string; owned_by?: string }>;
+    data?: Array<{
+      id: string;
+      name?: string;
+      owned_by?: string;
+      context_window?: number;
+      contextWindow?: number;
+      max_tokens?: number;
+      maxTokens?: number;
+      max_output_tokens?: number;
+    }>;
   };
   return (body.data ?? []).map((model) => ({
     id: model.id,
     name: model.name || model.id,
     ownedBy: model.owned_by ?? null,
+    contextWindow: model.context_window ?? model.contextWindow ?? null,
+    maxTokens: model.max_output_tokens ?? model.max_tokens ?? model.maxTokens ?? null,
   }));
 }
 

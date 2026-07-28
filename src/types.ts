@@ -18,8 +18,8 @@ export interface ModelProfile {
   name: string;
   reasoning: boolean;
   input: string[];
-  contextWindow: number;
-  maxTokens: number;
+  contextWindow: number | null;
+  maxTokens: number | null;
 }
 
 export interface ProviderProfile {
@@ -89,6 +89,8 @@ export interface FetchedModel {
   id: string;
   name: string;
   ownedBy: string | null;
+  contextWindow: number | null;
+  maxTokens: number | null;
 }
 
 export interface BackupInfo {

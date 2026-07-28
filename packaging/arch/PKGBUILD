@@ -1,5 +1,5 @@
 pkgname=pi-switch
-pkgver=0.3.0
+pkgver=0.3.1
 pkgrel=1
 pkgdesc="Desktop provider and model configuration manager for Pi Coding Agent"
 arch=('x86_64')

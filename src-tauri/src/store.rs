@@ -67,6 +67,16 @@ fn decode_profile(
 ) -> Result<ProviderProfile, String> {
     let mut profile: ProviderProfile =
         serde_json::from_str(&json).map_err(|error| error.to_string())?;
+    for model in &mut profile.models {
+        // Pi uses these exact values when the optional fields are absent. Older
+        // Pi Switch versions wrote them for every fetched model as if known.
+        if model.context_window == Some(128_000) {
+            model.context_window = None;
+        }
+        if model.max_tokens == Some(16_384) {
+            model.max_tokens = None;
+        }
+    }
     profile.enabled = enabled;
     profile.created_at = created_at;
     profile.updated_at = updated_at;
@@ -255,7 +265,7 @@ pub(crate) fn validate_profile(profile: &ProviderProfile) -> Result<(), String> 
         if model.id.trim().is_empty() {
             return Err("Model ID cannot be empty.".to_string());
         }
-        if model.context_window == 0 || model.max_tokens == 0 {
+        if model.context_window == Some(0) || model.max_tokens == Some(0) {
             return Err(format!("Model {} has invalid token limits.", model.id));
         }
     }

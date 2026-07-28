@@ -275,14 +275,22 @@ function App() {
       const existing = new Map(draft.models.map((model) => [model.id, model]));
       const models = fetched.map((model) => {
         const current = existing.get(model.id);
-        if (current) return { ...current, input: [...current.input] };
+        if (current) {
+          return {
+            ...current,
+            input: [...current.input],
+            contextWindow:
+              model.contextWindow ?? (current.contextWindow === 128000 ? null : current.contextWindow),
+            maxTokens: model.maxTokens ?? (current.maxTokens === 16384 ? null : current.maxTokens),
+          };
+        }
         return {
           id: model.id,
           name: model.name || model.id,
           reasoning: /^(claude|codex|gpt-5|gemini|o[134](?:-|$))/i.test(model.id),
           input: ["text"],
-          contextWindow: 128000,
-          maxTokens: 16384,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
         };
       });
       setDraft({ ...draft, models });
