@@ -41,6 +41,26 @@ export interface WorkspaceSettings {
   defaultThinking: ThinkingLevel;
 }
 
+export type ApprovalMode = "manual" | "auto" | "locked";
+
+export interface ApprovalSettings {
+  enabled: boolean;
+  mode: ApprovalMode;
+  primaryProvider: string;
+  primaryModel: string;
+  escalationProvider: string;
+  escalationModel: string;
+  timeoutMs: number;
+  allowProjectWrites: boolean;
+  alwaysAskNetwork: boolean;
+}
+
+export interface ApprovalStatus {
+  installed: boolean;
+  extensionPath: string;
+  configPath: string;
+}
+
 export interface AppStatus {
   piVersion: string | null;
   piAvailable: boolean;

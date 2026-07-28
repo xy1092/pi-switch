@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppStatus,
+  ApprovalSettings,
+  ApprovalStatus,
   BackupInfo,
   FetchedModel,
   ProviderProfile,
@@ -11,6 +13,7 @@ import type {
 
 const PROFILE_KEY = "pi-switch-preview-profiles";
 const WORKSPACE_KEY = "pi-switch-preview-workspace";
+const APPROVAL_KEY = "pi-switch-preview-approval";
 const isTauri = "__TAURI_INTERNALS__" in window;
 
 function loadPreviewProfiles(): ProviderProfile[] {
@@ -181,4 +184,34 @@ export async function listBackups(): Promise<BackupInfo[]> {
 
 export async function restoreBackup(id: string): Promise<void> {
   if (isTauri) return invoke("restore_backup", { id });
+}
+
+export async function getApprovalSettings(): Promise<ApprovalSettings> {
+  if (isTauri) return invoke("get_approval_settings");
+  return JSON.parse(
+    localStorage.getItem(APPROVAL_KEY) ??
+      '{"enabled":false,"mode":"manual","primaryProvider":"personal-deepseek","primaryModel":"deepseek-v4-flash","escalationProvider":"personal-deepseek","escalationModel":"deepseek-v4-pro","timeoutMs":12000,"allowProjectWrites":true,"alwaysAskNetwork":true}',
+  ) as ApprovalSettings;
+}
+
+export async function saveApprovalSettings(
+  settings: ApprovalSettings,
+): Promise<ApprovalStatus> {
+  if (isTauri) return invoke("save_approval_settings", { settings });
+  localStorage.setItem(APPROVAL_KEY, JSON.stringify(settings));
+  return {
+    installed: settings.enabled,
+    extensionPath: "~/.pi/agent/extensions/pi-approval/index.ts",
+    configPath: "~/.pi/agent/extensions/pi-approval/config.json",
+  };
+}
+
+export async function getApprovalStatus(): Promise<ApprovalStatus> {
+  if (isTauri) return invoke("get_approval_status");
+  const settings = await getApprovalSettings();
+  return {
+    installed: settings.enabled,
+    extensionPath: "~/.pi/agent/extensions/pi-approval/index.ts",
+    configPath: "~/.pi/agent/extensions/pi-approval/config.json",
+  };
 }

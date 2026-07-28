@@ -15,10 +15,12 @@ Pi Switch 是给 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的�
 - 从现有 Pi 配置导入
 - 原子写入 JSON，每次应用前自动备份，可一键恢复
 - SQLite 作为唯一数据源
+- Pi 执行前权限审批，支持手动、DeepSeek 自动审批和锁定模式
+- `deepseek-v4-flash` 快速主审，`deepseek-v4-pro` 复杂情况复核
 
 ## 界面
 
-顶栏：品牌名、供应商/备份分段切换、导入与刷新工具按钮、右上新建按钮。
+顶栏：品牌名、供应商/权限/备份分段切换、导入与刷新工具按钮、右上新建按钮。
 
 状态条：Pi 版本与启用数量、默认供应商/默认模型/思考强度三个下拉、「应用到 Pi」主按钮。
 
@@ -39,6 +41,9 @@ Pi Switch 自身数据：
 ~/.pi/agent/models.json
 ~/.pi/agent/auth.json
 ~/.pi/agent/settings.json
+~/.pi/agent/extensions/pi-approval/index.ts
+~/.pi/agent/extensions/pi-approval/config.json
+~/.pi/agent/extensions/pi-approval/audit/
 ```
 
 Pi Switch 会保留它不管理的字段和供应商。API Key 不会写入 `models.json`，而是存在私有 SQLite 数据库里，并以仅用户可读的权限同步到 Pi 的 `auth.json`。
@@ -74,7 +79,7 @@ makepkg --clean --force
 安装：
 
 ```bash
-sudo pacman -U ./pi-switch-0.2.1-2-x86_64.pkg.tar.zst
+sudo pacman -U ./pi-switch-0.3.0-1-x86_64.pkg.tar.zst
 ```
 
 ### 更新已安装的版本

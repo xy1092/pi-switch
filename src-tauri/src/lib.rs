@@ -1,9 +1,11 @@
+mod approval;
 mod models;
 mod pi_config;
 mod store;
 
 use models::{
-    AppStatus, BackupInfo, FetchedModel, ProviderProfile, SyncResult, TestResult, WorkspaceSettings,
+    AppStatus, ApprovalSettings, ApprovalStatus, BackupInfo, FetchedModel, ProviderProfile,
+    SyncResult, TestResult, WorkspaceSettings,
 };
 
 #[tauri::command]
@@ -64,6 +66,21 @@ fn restore_backup(id: String) -> Result<(), String> {
     pi_config::restore_backup(&id)
 }
 
+#[tauri::command]
+fn get_approval_settings() -> Result<ApprovalSettings, String> {
+    store::get_approval_settings()
+}
+
+#[tauri::command]
+fn get_approval_status() -> Result<ApprovalStatus, String> {
+    approval::get_status()
+}
+
+#[tauri::command]
+fn save_approval_settings(settings: ApprovalSettings) -> Result<ApprovalStatus, String> {
+    approval::save_settings(settings)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -79,7 +96,10 @@ pub fn run() {
             fetch_provider_models,
             import_live_config,
             list_backups,
-            restore_backup
+            restore_backup,
+            get_approval_settings,
+            get_approval_status,
+            save_approval_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

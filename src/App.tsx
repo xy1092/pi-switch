@@ -10,32 +10,39 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ShieldCheck,
 } from "lucide-react";
 import "./App.css";
 import { ProviderEditor } from "./components/ProviderEditor";
 import { ProviderList } from "./components/ProviderList";
+import { ApprovalSettings as ApprovalSettingsView } from "./components/ApprovalSettings";
 import {
   deleteProfile,
   fetchProviderModels,
   getAppStatus,
+  getApprovalSettings,
+  getApprovalStatus,
   getWorkspaceSettings,
   importLiveConfig,
   listBackups,
   listProfiles,
   restoreBackup,
   saveProfile,
+  saveApprovalSettings,
   syncConfiguration,
   testProfile,
 } from "./lib/backend";
 import type {
   AppStatus,
+  ApprovalSettings,
+  ApprovalStatus,
   BackupInfo,
   ProviderProfile,
   ThinkingLevel,
   WorkspaceSettings,
 } from "./types";
 
-type View = "providers" | "backups";
+type View = "providers" | "permissions" | "backups";
 
 const thinkingLabels: Record<ThinkingLevel, string> = {
   off: "关闭",
@@ -56,6 +63,45 @@ const emptyStatus: AppStatus = {
   settingsPath: "",
   liveConfigExists: false,
 };
+
+const emptyApproval: ApprovalSettings = {
+  enabled: false,
+  mode: "manual",
+  primaryProvider: "",
+  primaryModel: "deepseek-v4-flash",
+  escalationProvider: "",
+  escalationModel: "deepseek-v4-pro",
+  timeoutMs: 12000,
+  allowProjectWrites: true,
+  alwaysAskNetwork: true,
+};
+
+const emptyApprovalStatus: ApprovalStatus = {
+  installed: false,
+  extensionPath: "~/.pi/agent/extensions/pi-approval/index.ts",
+  configPath: "~/.pi/agent/extensions/pi-approval/config.json",
+};
+
+function normalizeApproval(
+  profiles: ProviderProfile[],
+  settings: ApprovalSettings,
+): ApprovalSettings {
+  const findProvider = (modelId: string, current: string) => {
+    const active = profiles.find(
+      (profile) => profile.enabled && profile.id === current && profile.models.some((model) => model.id === modelId),
+    );
+    return active?.id ?? profiles.find(
+      (profile) => profile.enabled && profile.models.some((model) => model.id === modelId),
+    )?.id ?? current;
+  };
+  return {
+    ...settings,
+    primaryProvider: findProvider("deepseek-v4-flash", settings.primaryProvider),
+    primaryModel: "deepseek-v4-flash",
+    escalationProvider: findProvider("deepseek-v4-pro", settings.escalationProvider),
+    escalationModel: "deepseek-v4-pro",
+  };
+}
 
 function createProvider(existing: ProviderProfile[], source?: ProviderProfile): ProviderProfile {
   const base = source?.id ?? "my-provider";
@@ -101,6 +147,8 @@ function App() {
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [status, setStatus] = useState<AppStatus>(emptyStatus);
+  const [approval, setApproval] = useState<ApprovalSettings>(emptyApproval);
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>(emptyApprovalStatus);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [view, setView] = useState<View>("providers");
   const [query, setQuery] = useState("");
@@ -118,16 +166,20 @@ function App() {
   const isNewDraft = Boolean(draft && !profiles.some((profile) => profile.id === draft.id));
 
   const refresh = async () => {
-    const [loadedProfiles, loadedWorkspace, loadedStatus, loadedBackups] = await Promise.all([
+    const [loadedProfiles, loadedWorkspace, loadedStatus, loadedBackups, loadedApproval, loadedApprovalStatus] = await Promise.all([
       listProfiles(),
       getWorkspaceSettings(),
       getAppStatus(),
       listBackups(),
+      getApprovalSettings(),
+      getApprovalStatus(),
     ]);
     setProfiles(loadedProfiles);
     setWorkspace(normalizeWorkspace(loadedProfiles, loadedWorkspace));
     setStatus(loadedStatus);
     setBackups(loadedBackups);
+    setApproval(normalizeApproval(loadedProfiles, loadedApproval));
+    setApprovalStatus(loadedApprovalStatus);
   };
 
   useEffect(() => {
@@ -312,6 +364,24 @@ function App() {
     }
   };
 
+  const handleSaveApproval = async () => {
+    setBusy(true);
+    try {
+      const result = await saveApprovalSettings(approval);
+      setApprovalStatus(result);
+      setNotice({
+        kind: "success",
+        text: approval.enabled
+          ? "权限审批扩展已安装，重新加载 Pi 会话后生效"
+          : "权限审批扩展已停用",
+      });
+    } catch (error) {
+      setNotice({ kind: "error", text: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const noticeBanner = notice && (
     <button className={`notice ${notice.kind}`} onClick={() => setNotice(null)}>
       {notice.kind === "success" ? <Check size={17} /> : <AlertCircle size={17} />}
@@ -362,6 +432,14 @@ function App() {
             <span className="seg-count">{profiles.length}</span>
           </button>
           <button
+            className={view === "permissions" ? "active" : ""}
+            onClick={() => setView("permissions")}
+          >
+            <ShieldCheck size={17} />
+            权限
+            <span className="seg-count">{approval.enabled ? "开" : "关"}</span>
+          </button>
+          <button
             className={view === "backups" ? "active" : ""}
             onClick={() => setView("backups")}
           >
@@ -392,9 +470,11 @@ function App() {
           </button>
         </div>
 
-        <button className="add-fab" onClick={() => openNew()} title="新建供应商" aria-label="新建供应商">
-          <Plus size={22} />
-        </button>
+        {view === "providers" && (
+          <button className="add-fab" onClick={() => openNew()} title="新建供应商" aria-label="新建供应商">
+            <Plus size={22} />
+          </button>
+        )}
       </header>
 
       <div className="active-bar">
@@ -499,6 +579,17 @@ function App() {
             onDelete={handleDelete}
             onUse={handleUse}
             onNew={() => openNew()}
+          />
+        )}
+
+        {view === "permissions" && (
+          <ApprovalSettingsView
+            settings={approval}
+            status={approvalStatus}
+            profiles={profiles}
+            busy={busy}
+            onChange={setApproval}
+            onSave={handleSaveApproval}
           />
         )}
 

@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::models::{ProviderProfile, WorkspaceSettings};
+use crate::models::{ApprovalSettings, ProviderProfile, WorkspaceSettings};
 
 pub fn now_ms() -> i64 {
     SystemTime::now()
@@ -171,6 +171,45 @@ pub fn save_workspace_settings(settings: &WorkspaceSettings) -> Result<(), Strin
     connection
         .execute(
             "INSERT INTO app_settings (key, value) VALUES ('workspace', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![value],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub fn get_approval_settings() -> Result<ApprovalSettings, String> {
+    let connection = open_connection()?;
+    let value: Option<String> = connection
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = 'approval'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    match value {
+        Some(json) => serde_json::from_str(&json).map_err(|error| error.to_string()),
+        None => Ok(ApprovalSettings {
+            enabled: false,
+            mode: "manual".to_string(),
+            primary_provider: String::new(),
+            primary_model: "deepseek-v4-flash".to_string(),
+            escalation_provider: String::new(),
+            escalation_model: "deepseek-v4-pro".to_string(),
+            timeout_ms: 12_000,
+            allow_project_writes: true,
+            always_ask_network: true,
+        }),
+    }
+}
+
+pub fn save_approval_settings(settings: &ApprovalSettings) -> Result<(), String> {
+    let connection = open_connection()?;
+    let value = serde_json::to_string(settings).map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO app_settings (key, value) VALUES ('approval', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![value],
         )

@@ -292,6 +292,93 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   word-break: break-all;
 }
 
+/* ── 权限审批 ─────────────────────────── */
+.approval-page { display: grid; }
+.install-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-soft);
+  background: var(--surface);
+  font-size: 12px;
+}
+.install-state.ready { color: var(--success); border-color: rgb(22 163 74 / 24%); background: var(--success-soft); }
+.approval-panel {
+  display: grid;
+  gap: 22px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.approval-title {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.approval-title > svg { color: var(--brand); }
+.approval-title > div { display: grid; gap: 3px; }
+.approval-title strong { font-size: 15px; }
+.approval-title span { color: var(--text-soft); font-size: 12px; }
+.switch-control { position: relative; width: 42px; height: 24px; }
+.switch-control input { position: absolute; opacity: 0; pointer-events: none; }
+.switch-control > span { position: absolute; inset: 0; border-radius: 12px; background: var(--border-strong); transition: background .15s; }
+.switch-control > span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+  transition: transform .15s;
+}
+.switch-control input:checked + span { background: var(--brand); }
+.switch-control input:checked + span::after { transform: translateX(18px); }
+.switch-control input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 2px; }
+.mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mode-grid button {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: left;
+  background: var(--surface);
+}
+.mode-grid button:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.mode-grid button.active { border-color: var(--brand); background: var(--brand-soft); }
+.mode-grid strong { font-size: 13px; }
+.mode-grid span { color: var(--text-soft); font-size: 11px; line-height: 1.4; }
+.approval-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px; gap: 12px; }
+.approval-form > label { display: grid; gap: 6px; color: var(--text-soft); font-size: 12px; font-weight: 500; }
+.number-field { position: relative; display: block; }
+.number-field input { width: 100%; padding-right: 38px; }
+.number-field > span { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); color: var(--text-faint); font-size: 11px; }
+.policy-list { display: grid; border-top: 1px solid var(--border); }
+.policy-list label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.policy-list input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--brand); }
+.policy-list label > span { display: grid; gap: 3px; }
+.policy-list strong { font-size: 13px; }
+.policy-list small { color: var(--text-soft); font-size: 11px; }
+.approval-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.approval-footer > span { max-width: 680px; color: var(--text-faint); font-size: 11px; line-height: 1.5; }
+
 /* ── 供应商卡片 ───────────────────────── */
 .card-list { display: grid; gap: 14px; }
 .provider-card {
@@ -629,6 +716,8 @@ input:disabled { background: var(--surface-soft); color: var(--text-faint); }
   .active-bar { grid-template-columns: 1fr; align-items: stretch; }
   .active-bar .primary-button { justify-self: stretch; }
   .model-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .approval-form { grid-template-columns: 1fr 1fr; }
+  .approval-form > label:last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {
@@ -642,4 +731,8 @@ input:disabled { background: var(--surface-soft); color: var(--text-faint); }
   .panel-heading { align-items: flex-start; flex-direction: column; }
   .panel-heading .panel-actions { width: 100%; }
   .panel-heading .panel-actions .secondary-button { flex: 1; }
+  .mode-grid, .approval-form { grid-template-columns: 1fr; }
+  .approval-form > label:last-child { grid-column: auto; }
+  .approval-footer { align-items: stretch; flex-direction: column; }
+  .approval-footer .primary-button { width: 100%; }
 }

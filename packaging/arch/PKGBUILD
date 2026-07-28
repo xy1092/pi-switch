@@ -1,6 +1,6 @@
 pkgname=pi-switch
-pkgver=0.2.1
-pkgrel=2
+pkgver=0.3.0
+pkgrel=1
 pkgdesc="Desktop provider and model configuration manager for Pi Coding Agent"
 arch=('x86_64')
 url="https://github.com/badlogic/pi-mono"
