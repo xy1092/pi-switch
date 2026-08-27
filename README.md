@@ -18,7 +18,7 @@ Pi Switch 是给 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的�
 - Pi 执行前权限审批，支持手动、DeepSeek 自动审批和锁定模式
 - 审批模型自由选择：从已启用供应商的任意模型中指定主审与复核（默认推荐快速模型主审、强力模型复核）
 - Pi 内使用 `/permission` 选择每次询问、Approve for me、锁定或本会话完全访问
-- 模型接口返回上下文和输出上限时自动导入，未知时保留为自动值
+- 上下文窗口三级取值：模型显式值 → 供应商默认 → 内置基准（GPT-5.6 同款 1,050,000）；输出上限仅在接口返回时导入，未知则省略不猜
 - 全局子 Agent 的新建、编辑、复制、启停和删除
 - 一键安装 explorer、analyst、planner、implementer、reviewer 五个推荐模板
 - 自动安装 Pi 官方 `subagent` 调度器，支持单次、并行和链式委派

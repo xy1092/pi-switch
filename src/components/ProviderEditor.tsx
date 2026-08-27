@@ -149,7 +149,7 @@ export function ProviderEditor({
                   type="number"
                   min={1}
                   value={profile.defaultContextWindow ?? ""}
-                  placeholder="自动"
+                  placeholder="内置基准 1,050,000"
                   onChange={(event) =>
                     onChange({
                       ...profile,
@@ -277,7 +277,7 @@ export function ProviderEditor({
                           type="number"
                           min={1}
                           value={model.contextWindow ?? ""}
-                          placeholder="自动"
+                          placeholder="留空 → 内置基准"
                           onChange={(event) =>
                             updateModel(index, {
                               contextWindow: event.target.value ? Number(event.target.value) : null,

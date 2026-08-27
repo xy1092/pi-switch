@@ -64,6 +64,16 @@ fn atomic_write_json(path: &Path, value: &Value) -> Result<(), String> {
     fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|error| error.to_string())
 }
 
+/// Built-in baseline emitted when neither the model nor the provider declares
+/// a context window. Matches pi's own catalog value for the GPT-5.6 family
+/// (standard tier boundary is 272K — see docs/models.md in pi-mono).
+///
+/// Known deviations worth overriding manually until a per-model table exists:
+///   gpt-5.5      → 272_000
+///   gpt-5.4-mini → 400_000
+///   deepseek-v4* → 1_000_000
+const FALLBACK_CONTEXT_WINDOW: u64 = 1_050_000;
+
 fn model_json(model: &ModelProfile, inherited_context: Option<u64>) -> Value {
     let mut value = json!({
         "id": model.id,
@@ -74,10 +84,13 @@ fn model_json(model: &ModelProfile, inherited_context: Option<u64>) -> Value {
     // Pi marks `cost` optional in its schema; prices differ per channel
     // (relays reprice models), so we don't fabricate numbers — token usage
     // stays the honest, comparable unit.
-    // Per-model value wins; otherwise fall back to the provider-wide default.
-    if let Some(context_window) = model.context_window.or(inherited_context) {
-        value["contextWindow"] = json!(context_window);
-    }
+    // Per-model value wins, then provider-wide default, then built-in baseline
+    // — every synced model gets a concrete context window.
+    let context_window = model
+        .context_window
+        .or(inherited_context)
+        .unwrap_or(FALLBACK_CONTEXT_WINDOW);
+    value["contextWindow"] = json!(context_window);
     if let Some(max_tokens) = model.max_tokens {
         value["maxTokens"] = json!(max_tokens);
     }
@@ -778,12 +791,15 @@ mod tests {
     }
 
     #[test]
-    fn provider_json_omits_unknown_token_limits() {
+    fn provider_json_falls_back_to_baseline_context() {
         let mut profile = example_profile();
+        profile.default_context_window = None;
         profile.models[0].context_window = None;
         profile.models[0].max_tokens = None;
         let value = provider_json(&profile);
-        assert!(value["models"][0].get("contextWindow").is_none());
+        // Context window always concrete: model → provider → built-in baseline.
+        assert_eq!(value["models"][0]["contextWindow"], 1_050_000);
+        // Unknown output limits are still omitted rather than guessed.
         assert!(value["models"][0].get("maxTokens").is_none());
     }
 
