@@ -16,16 +16,23 @@ const modes: Array<{ value: ApprovalMode; label: string; detail: string }> = [
   { value: "locked", label: "锁定", detail: "所有需审批操作直接拒绝" },
 ];
 
-function modelOptions(profiles: ProviderProfile[], modelId: string) {
+// 审批模型不再限定 DeepSeek：列出全部已启用供应商的所有模型供选择，
+// 仅对经典搭配给出推荐标记。
+const RECOMMENDED: Record<string, string> = {
+  "deepseek-v4-flash": "（推荐主审）",
+  "deepseek-v4-pro": "（推荐复核）",
+};
+
+function allModelOptions(profiles: ProviderProfile[]) {
   return profiles
     .filter((profile) => profile.enabled)
     .flatMap((profile) =>
-      profile.models
-        .filter((model) => model.id === modelId)
-        .map((model) => ({
-          value: `${profile.id}/${model.id}`,
-          label: `${profile.name} / ${model.name || model.id}`,
-        })),
+      profile.models.map((model) => ({
+        value: `${profile.id}/${model.id}`,
+        label: `${profile.name} / ${model.name || model.id}${
+          RECOMMENDED[model.id] ?? ""
+        }`,
+      })),
     );
 }
 
@@ -35,8 +42,7 @@ function splitReference(reference: string) {
 }
 
 export function ApprovalSettings({ settings, status, profiles, busy, onChange, onSave }: Props) {
-  const flash = modelOptions(profiles, "deepseek-v4-flash");
-  const pro = modelOptions(profiles, "deepseek-v4-pro");
+  const options = allModelOptions(profiles);
   const primaryRef = `${settings.primaryProvider}/${settings.primaryModel}`;
   const escalationRef = `${settings.escalationProvider}/${settings.escalationModel}`;
 
@@ -99,8 +105,8 @@ export function ApprovalSettings({ settings, status, profiles, busy, onChange, o
             快速审批模型
             <span className="select-wrap">
               <select value={primaryRef} onChange={(event) => setModel("primary", event.target.value)}>
-                {flash.length === 0 && <option value={primaryRef}>未找到 deepseek-v4-flash</option>}
-                {flash.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                {options.length === 0 && <option value={primaryRef}>暂无已启用的模型</option>}
+                {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               <ChevronDown size={15} />
             </span>
@@ -109,8 +115,8 @@ export function ApprovalSettings({ settings, status, profiles, busy, onChange, o
             复杂情况复核模型
             <span className="select-wrap">
               <select value={escalationRef} onChange={(event) => setModel("escalation", event.target.value)}>
-                {pro.length === 0 && <option value={escalationRef}>未找到 deepseek-v4-pro</option>}
-                {pro.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                {options.length === 0 && <option value={escalationRef}>暂无已启用的模型</option>}
+                {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               <ChevronDown size={15} />
             </span>

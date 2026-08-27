@@ -67,11 +67,8 @@ fn validate(settings: &ApprovalSettings) -> Result<(), String> {
     if !settings.enabled {
         return Ok(());
     }
-    if settings.primary_model != "deepseek-v4-flash"
-        || settings.escalation_model != "deepseek-v4-pro"
-    {
-        return Err("Approval models must be deepseek-v4-flash and deepseek-v4-pro.".to_string());
-    }
+    // The approval pair is user-chosen: any model from any enabled provider
+    // is acceptable as long as both references actually resolve.
     let profiles = list_profiles()?;
     for (provider, model, label) in [
         (
