@@ -28,6 +28,8 @@ export interface ProviderProfile {
   baseUrl: string;
   api: ApiProtocol;
   apiKey: string;
+  /** Fallback context window (tokens) for models that leave their own empty. */
+  defaultContextWindow: number | null;
   authHeader: boolean;
   models: ModelProfile[];
   enabled: boolean;

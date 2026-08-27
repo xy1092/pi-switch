@@ -64,7 +64,7 @@ fn atomic_write_json(path: &Path, value: &Value) -> Result<(), String> {
     fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|error| error.to_string())
 }
 
-fn model_json(model: &ModelProfile) -> Value {
+fn model_json(model: &ModelProfile, inherited_context: Option<u64>) -> Value {
     let mut value = json!({
         "id": model.id,
         "name": if model.name.trim().is_empty() { &model.id } else { &model.name },
@@ -77,7 +77,8 @@ fn model_json(model: &ModelProfile) -> Value {
             "cacheWrite": 0
         }
     });
-    if let Some(context_window) = model.context_window {
+    // Per-model value wins; otherwise fall back to the provider-wide default.
+    if let Some(context_window) = model.context_window.or(inherited_context) {
         value["contextWindow"] = json!(context_window);
     }
     if let Some(max_tokens) = model.max_tokens {
@@ -91,7 +92,11 @@ fn provider_json(profile: &ProviderProfile) -> Value {
         "name": profile.name,
         "baseUrl": profile.base_url.trim_end_matches('/'),
         "api": profile.api,
-        "models": profile.models.iter().map(model_json).collect::<Vec<_>>()
+        "models": profile
+            .models
+            .iter()
+            .map(|model| model_json(model, profile.default_context_window))
+            .collect::<Vec<_>>()
     });
     if profile.auth_header {
         provider["authHeader"] = Value::Bool(true);
@@ -439,6 +444,7 @@ pub fn import_live() -> Result<Vec<ProviderProfile>, String> {
                 .get("authHeader")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            default_context_window: provider.get("defaultContextWindow").and_then(Value::as_u64),
             models: imported_models,
             enabled: true,
             created_at: 0,
@@ -727,6 +733,7 @@ mod tests {
             api: "openai-responses".to_string(),
             api_key: "secret".to_string(),
             auth_header: false,
+            default_context_window: None,
             models: vec![ModelProfile {
                 id: "test-model".to_string(),
                 name: "Test Model".to_string(),
@@ -749,6 +756,7 @@ mod tests {
             api: "openai-completions".to_string(),
             api_key: "second-secret".to_string(),
             auth_header: false,
+            default_context_window: None,
             models: vec![ModelProfile {
                 id: "second-model".to_string(),
                 name: "Second Model".to_string(),
@@ -780,6 +788,21 @@ mod tests {
         let value = provider_json(&profile);
         assert!(value["models"][0].get("contextWindow").is_none());
         assert!(value["models"][0].get("maxTokens").is_none());
+    }
+
+    #[test]
+    fn model_without_own_context_inherits_provider_default() {
+        let mut profile = example_profile();
+        profile.default_context_window = Some(400_000);
+        profile.models[0].context_window = None;
+
+        let value = provider_json(&profile);
+        assert_eq!(value["models"][0]["contextWindow"], 400_000);
+
+        // An explicit per-model value must keep winning over the default.
+        profile.models[0].context_window = Some(1_000_000);
+        let value = provider_json(&profile);
+        assert_eq!(value["models"][0]["contextWindow"], 1_000_000);
     }
 
     #[test]

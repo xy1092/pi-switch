@@ -77,9 +77,9 @@ const emptyApproval: ApprovalSettings = {
   enabled: false,
   mode: "manual",
   primaryProvider: "",
-  primaryModel: "deepseek-v4-flash",
+  primaryModel: "",
   escalationProvider: "",
-  escalationModel: "deepseek-v4-pro",
+  escalationModel: "",
   timeoutMs: 12000,
   allowProjectWrites: true,
   alwaysAskNetwork: true,
@@ -101,20 +101,30 @@ function normalizeApproval(
   profiles: ProviderProfile[],
   settings: ApprovalSettings,
 ): ApprovalSettings {
-  const findProvider = (modelId: string, current: string) => {
-    const active = profiles.find(
-      (profile) => profile.enabled && profile.id === current && profile.models.some((model) => model.id === modelId),
+  // Keep whatever the user picked; only heal references that no longer
+  // resolve (deleted provider/model). Never force specific model ids.
+  const active = profiles.filter((profile) => profile.enabled);
+  const resolve = (providerId: string, modelId: string) => {
+    const exact = active.find(
+      (profile) => profile.id === providerId && profile.models.some((model) => model.id === modelId),
     );
-    return active?.id ?? profiles.find(
-      (profile) => profile.enabled && profile.models.some((model) => model.id === modelId),
-    )?.id ?? current;
+    if (exact) return { provider: exact.id, model: modelId };
+    const byModel = active.find((profile) => profile.models.some((model) => model.id === modelId));
+    if (byModel) return { provider: byModel.id, model: modelId };
+    const fallback = active[0];
+    return {
+      provider: fallback?.id ?? providerId,
+      model: fallback?.models[0]?.id ?? modelId,
+    };
   };
+  const primary = resolve(settings.primaryProvider, settings.primaryModel);
+  const escalation = resolve(settings.escalationProvider, settings.escalationModel);
   return {
     ...settings,
-    primaryProvider: findProvider("deepseek-v4-flash", settings.primaryProvider),
-    primaryModel: "deepseek-v4-flash",
-    escalationProvider: findProvider("deepseek-v4-pro", settings.escalationProvider),
-    escalationModel: "deepseek-v4-pro",
+    primaryProvider: primary.provider,
+    primaryModel: primary.model,
+    escalationProvider: escalation.provider,
+    escalationModel: escalation.model,
   };
 }
 
@@ -132,6 +142,7 @@ function createProvider(existing: ProviderProfile[], source?: ProviderProfile): 
     api: source?.api ?? "openai-responses",
     apiKey: source?.apiKey ?? "",
     authHeader: source?.authHeader ?? false,
+    defaultContextWindow: source?.defaultContextWindow ?? null,
     enabled: source?.enabled ?? true,
     models: source?.models.map((model) => ({ ...model, input: [...model.input] })) ?? [],
     createdAt: 0,

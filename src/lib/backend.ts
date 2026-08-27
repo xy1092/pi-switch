@@ -29,6 +29,7 @@ function loadPreviewProfiles(): ProviderProfile[] {
       api: "openai-responses",
       apiKey: "preview-key",
       authHeader: false,
+      defaultContextWindow: null,
       enabled: true,
       models: [
         {
@@ -58,6 +59,7 @@ function loadPreviewProfiles(): ProviderProfile[] {
       api: "openai-completions",
       apiKey: "preview-key",
       authHeader: false,
+      defaultContextWindow: null,
       enabled: true,
       models: [
         {
@@ -203,7 +205,7 @@ export async function getApprovalSettings(): Promise<ApprovalSettings> {
   if (isTauri) return invoke("get_approval_settings");
   return JSON.parse(
     localStorage.getItem(APPROVAL_KEY) ??
-      '{"enabled":false,"mode":"manual","primaryProvider":"personal-deepseek","primaryModel":"deepseek-v4-flash","escalationProvider":"personal-deepseek","escalationModel":"deepseek-v4-pro","timeoutMs":12000,"allowProjectWrites":true,"alwaysAskNetwork":true}',
+      '{"enabled":false,"mode":"manual","primaryProvider":"","primaryModel":"","escalationProvider":"","escalationModel":"","timeoutMs":12000,"allowProjectWrites":true,"alwaysAskNetwork":true}',
   ) as ApprovalSettings;
 }
 

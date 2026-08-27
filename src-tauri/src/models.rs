@@ -35,6 +35,9 @@ pub struct ProviderProfile {
     pub api_key: String,
     #[serde(default)]
     pub auth_header: bool,
+    /// Fallback context window for models that don't declare their own.
+    #[serde(default)]
+    pub default_context_window: Option<u64>,
     #[serde(default)]
     pub models: Vec<ModelProfile>,
     #[serde(default = "default_enabled")]

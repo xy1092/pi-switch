@@ -144,6 +144,21 @@ export function ProviderEditor({
                 </select>
               </label>
               <label>
+                默认上下文（令牌）
+                <input
+                  type="number"
+                  min={1}
+                  value={profile.defaultContextWindow ?? ""}
+                  placeholder="自动"
+                  onChange={(event) =>
+                    onChange({
+                      ...profile,
+                      defaultContextWindow: event.target.value ? Number(event.target.value) : null,
+                    })
+                  }
+                />
+              </label>
+              <label>
                 请求地址
                 <input
                   value={profile.baseUrl}
