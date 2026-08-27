@@ -1,6 +1,7 @@
 mod agents;
 mod approval;
 mod models;
+mod packs;
 mod pi_config;
 mod store;
 
@@ -109,6 +110,13 @@ fn install_default_agents() -> Result<Vec<AgentProfile>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let packs_installed = packs::install_all();
+    if !packs_installed.is_empty() {
+        println!(
+            "pi-switch: installed capability packs: {}",
+            packs_installed.join(", ")
+        );
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
