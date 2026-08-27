@@ -73,6 +73,41 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
+## NixOS
+
+仓库自带 flake，提供 `packages.default`（打包好的桌面应用）与 `devShells.default`（开发环境）：
+
+```bash
+# 直接运行
+nix run github:xy1092/pi-switch
+
+# 安装进当前系统配置
+nix build github:xy1092/pi-switch   # 或本地： nix build .
+```
+
+在 `/etc/nixos/flake.nix` 里作为 input 使用：
+
+```nix
+inputs.pi-switch.url = "github:xy1092/pi-switch";
+
+# modules 里：
+environment.systemPackages = [
+  pi-switch.packages.${pkgs.system}.default
+];
+```
+
+flake 锁定的 nixpkgs 为 `nixos-26.05`，与本机频道一致时 webkitGTK 等大依赖直接复用系统缓存。
+
+参与开发：
+
+```bash
+nix develop          # 提供完整的 Rust + Node + GTK/webkit 工具链
+npm install
+npm run tauri dev
+```
+
+注意：构建遵循全局 nix 配置的并行度限制，首次全量编译较慢属于正常现象；之后依赖全部命中缓存。版本号自动读取 `src-tauri/tauri.conf.json`，改动依赖后需要按提示更新 `packaging/nix/package.nix` 中的两个 hash。
+
 ## CachyOS / Arch Linux 打包
 
 构建 release 二进制并打包：
