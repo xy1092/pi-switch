@@ -70,13 +70,10 @@ fn model_json(model: &ModelProfile, inherited_context: Option<u64>) -> Value {
         "name": if model.name.trim().is_empty() { &model.id } else { &model.name },
         "reasoning": model.reasoning,
         "input": model.input,
-        "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-        }
     });
+    // Pi marks `cost` optional in its schema; prices differ per channel
+    // (relays reprice models), so we don't fabricate numbers — token usage
+    // stays the honest, comparable unit.
     // Per-model value wins; otherwise fall back to the provider-wide default.
     if let Some(context_window) = model.context_window.or(inherited_context) {
         value["contextWindow"] = json!(context_window);
